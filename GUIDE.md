@@ -1,111 +1,98 @@
-# 🚀 Grammatic Deployment Guide
+# 🚀 Инструкция по запуску Grammatic
 
-This guide covers how to deploy the Grammatic application using Docker on a fresh machine and how to upload the project to GitHub.
+Эта инструкция нужна, чтобы развернуть готовый проект на сервере или новом компьютере.
 
----
-
-## 📦 Part 1: GitHub Import
-
-Since I cannot access your GitHub account directly, follow these steps to upload your project:
-
-### 1. Initialize Git (if not already done)
-Open your terminal in the project folder (`c:\Project\Grammatic`) and run:
-```bash
-git init
-git add .
-git commit -m "Initial commit: Grammatic Release 2.0"
-```
-
-### 2. Create a Repository on GitHub
-1. Go to [GitHub.com](https://github.com) and sign in.
-2. Click the **+** icon in the top right and select **New repository**.
-3. Name it `grammatic-ai` (or whatever you prefer).
-4. **Important:** Do NOT check "Add a README file" or .gitignore (we already have them).
-5. Click **Create repository**.
-
-### 3. Push to GitHub
-Copy the commands shown on GitHub under "…or push an existing repository from the command line". They will look like this:
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/grammatic-ai.git
-git branch -M main
-git push -u origin main
-```
+Адрес репозитория: `https://github.com/cproangel/grammatic-ai.git`
 
 ---
 
-## 🐳 Part 2: Deployment with Docker (From Scratch)
+## 🌍 Часть 1: Запуск на новом сервере (VPS)
 
-Follow these steps to deploy the application on a **fresh machine** (e.g., a VPS or another computer).
+Представьте, что вы купили чистый сервер. Вот как поднять там ваш сайт.
 
-### Prerequisites
-1. **Install Docker Desktop** (Windows/Mac) or **Docker Engine** (Linux).
-   - [Download Docker](https://www.docker.com/products/docker-desktop/)
-2. **Install Git** to clone the repository.
+### Что нужно установить заранее?
+1.  **Docker** и **Docker Compose**.
+2.  **Git**.
 
-### Step-by-Step Deployment
+### Пошаговая установка
 
-#### 1. Clone the Repository
-On the new machine, open the terminal/command prompt:
+#### 1. Скачиваем проект
+Зайдите на сервер и введите:
 ```bash
-git clone https://github.com/YOUR_USERNAME/grammatic-ai.git
+git clone https://github.com/cproangel/grammatic-ai.git
 cd grammatic-ai
 ```
 
-#### 2. Configure Environment Variables
-**CRITICAL STEP:** You must create the `.env` file because it is ignored by Git for security.
+#### 2. Настраиваем ключи (Секреты)
+Файл с паролями `.env` не хранится в GitHub ради безопасности. Создайте его вручную.
 
-1. Navigate to the backend folder:
-   ```bash
-   cd backend
-   ```
-2. Copy the example file:
-   - **Windows:** `copy .env.example .env`
-   - **Linux/Mac:** `cp .env.example .env`
-3. Open `.env` and **paste your real API keys**:
-   ```ini
-   GEMINI_API_KEY="your_actual_key_here"
-   OPENAI_API_KEY="your_actual_key_here"
-   ```
-4. Return to the root folder:
-   ```bash
-   cd ..
-   ```
+1.  Зайдите в папку бэкенда:
+    ```bash
+    cd backend
+    ```
+2.  Скопируйте пример:
+    *   **Linux/Mac:** `cp .env.example .env`
+3.  Откройте файл `.env` (например, через `nano .env`) и впишите свои ключи `GEMINI_API_KEY` и `OPENAI_API_KEY`.
+    *   Сохранить в nano: `Ctrl+O`, затем `Enter`.
+    *   Выйти: `Ctrl+X`.
+4.  Вернитесь назад:
+    ```bash
+    cd ..
+    ```
 
-#### 3. Start the Application
-Run the following command to build and start the containers:
+#### 3. Запуск!
+Команда для старта всего проекта:
 ```bash
 docker-compose up -d --build
 ```
-- `up`: Starts the containers.
-- `-d`: Detached mode (runs in the background).
-- `--build`: Forces a rebuild of the images to ensure you have the latest code.
+*(Первый запуск займет 5-10 минут).*
 
-#### 4. Verify Deployment
-Check if the services are running:
-```bash
-docker-compose ps
-```
+#### 4. Проверка
+*   **Сайт:** `http://ВАШ_IP_АДРЕСА:8080`
+*   **API:** `http://ВАШ_IP_АДРЕСА:8003/docs`
 
-Access the application:
-- **Frontend:** [http://localhost:8080](http://localhost:8080)
-- **Backend API:** [http://localhost:8003/docs](http://localhost:8003/docs)
+---
 
-### 🌡️ Troubleshooting
+## 🔄 Часть 2: Как обновлять проект
 
-**If containers fail to start:**
-View the logs to see the error:
-```bash
-docker-compose logs -f
-```
+### Вариант А: Обновить код на Сервере (Деплой)
+Если вы что-то изменили в коде и хотите, чтобы это появилось на сервере:
 
-**If you updated the code:**
-Pull the latest changes and restart:
-```bash
-git pull origin main
-docker-compose up -d --build
-```
+1.  Зайдите на сервер в папку проекта.
+2.  Скачайте свежую версию:
+    ```bash
+    git pull origin main
+    ```
+3.  Перезапустите контейнеры:
+    ```bash
+    docker-compose up -d --build
+    ```
 
-**To stop everything:**
-```bash
-docker-compose down
-```
+### Вариант Б: Как отправить изменения на GitHub (Разработка)
+Если вы пишете код на своем компьютере и хотите сохранить его на GitHub:
+
+**В терминале VS Code:**
+1.  Проверьте, какие файлы изменились:
+    ```bash
+    git status
+    ```
+2.  Добавьте все изменения:
+    ```bash
+    git add .
+    ```
+3.  Сохраните их (сделайте коммит) с комментарием:
+    ```bash
+    git commit -m "Описание того, что вы сделали"
+    ```
+4.  Отправьте на GitHub:
+    ```bash
+    git push
+    ```
+
+---
+
+## 🛠 Полезные команды
+
+*   **Остановить сайт:** `docker-compose down`
+*   **Посмотреть логи (ошибки):** `docker-compose logs -f`
+*   **Посмотреть статус:** `docker-compose ps`

@@ -1,0 +1,546 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #f472b6;
+  --primary-dark: #db2777;
+  --primary-light: #f9a8d4;
+  --secondary: #fda4af;
+  --accent: #fecdd3;
+  --background: #1a0a12;
+  --surface: rgba(244, 114, 182, 0.05);
+  --glass: rgba(255, 255, 255, 0.08);
+  --text: #fdf2f8;
+  --text-muted: #f9a8d4;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--background);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+/* Sakura animated background */
+.eco-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: 
+    radial-gradient(ellipse at 10% 20%, rgba(244, 114, 182, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(253, 164, 175, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(249, 168, 212, 0.08) 0%, transparent 40%),
+    linear-gradient(180deg, #1a0a12 0%, #1f0a14 50%, #150810 100%);
+}
+
+/* Falling sakura petals */
+.sakura-petal {
+  position: absolute;
+  top: -30px;
+  width: var(--size, 12px);
+  height: var(--size, 12px);
+  pointer-events: none;
+  user-select: none;
+  animation: petal-fall 10s linear infinite;
+  z-index: 1;
+  background: linear-gradient(135deg, #fce4ec 0%, #f8bbd9 50%, #f48fb1 100%);
+  border-radius: 50% 0 50% 50%;
+  transform: rotate(var(--rotation, 45deg));
+  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.3);
+  opacity: 0;
+}
+
+@keyframes petal-fall {
+  0% {
+    transform: translateY(0) translateX(0) rotate(var(--rotation, 45deg)) scale(0.8);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.8;
+  }
+  25% {
+    transform: translateY(25vh) translateX(var(--drift, 20px)) rotate(calc(var(--rotation, 45deg) + 90deg)) scale(1);
+  }
+  50% {
+    transform: translateY(50vh) translateX(calc(var(--drift, 20px) * 1.5)) rotate(calc(var(--rotation, 45deg) + 180deg)) scale(0.95);
+  }
+  75% {
+    transform: translateY(75vh) translateX(calc(var(--drift, 20px) * 2)) rotate(calc(var(--rotation, 45deg) + 270deg)) scale(0.9);
+  }
+  95% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(105vh) translateX(calc(var(--drift, 20px) * 2.5)) rotate(calc(var(--rotation, 45deg) + 360deg)) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* Sakura branch image at top left */
+.sakura-branch-container {
+  position: fixed;
+  top: -20px;
+  left: -20px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.sakura-branch-img {
+  width: 280px;
+  height: auto;
+  opacity: 0.9;
+}
+
+/* Sakura ripple effect */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 114, 182, 0.2);
+  animation: ripple-effect 4s infinite ease-out;
+}
+
+@keyframes ripple-effect {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.5;
+  }
+  100% {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+/* Glass morphism - sakura style */
+.glass {
+  background: rgba(244, 114, 182, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 114, 182, 0.15);
+  border-radius: 20px;
+}
+
+.glass-card {
+  background: linear-gradient(
+    135deg, 
+    rgba(244, 114, 182, 0.08) 0%, 
+    rgba(253, 164, 175, 0.04) 50%,
+    rgba(244, 114, 182, 0.06) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 114, 182, 0.2);
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.glass-card:hover {
+  border-color: rgba(244, 114, 182, 0.35);
+  box-shadow: 
+    0 8px 32px rgba(244, 114, 182, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Sidebar */
+.sidebar {
+  background: linear-gradient(
+    180deg,
+    rgba(244, 114, 182, 0.06) 0%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  border-right: 1px solid rgba(244, 114, 182, 0.15);
+}
+
+/* Navigation buttons */
+.nav-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(249, 168, 212, 0.7);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.nav-btn:hover {
+  color: var(--text);
+  background: rgba(244, 114, 182, 0.1);
+  border-color: rgba(244, 114, 182, 0.2);
+}
+
+.nav-btn.active {
+  color: white;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 16px rgba(244, 114, 182, 0.3);
+}
+
+/* Primary button - fixed padding */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  font-weight: 600;
+  padding: 14px 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(244, 114, 182, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px rgba(244, 114, 182, 0.45);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Text area styling */
+.textarea-modern {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(244, 114, 182, 0.15);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+.textarea-modern:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.15);
+}
+
+.textarea-modern::placeholder {
+  color: rgba(249, 168, 212, 0.4);
+}
+
+/* Language selector */
+.lang-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(244, 114, 182, 0.15);
+  border-radius: 10px;
+}
+
+.lang-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: rgba(249, 168, 212, 0.7);
+}
+
+.lang-btn:hover {
+  color: var(--text);
+  background: rgba(244, 114, 182, 0.1);
+}
+
+.lang-btn.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.3);
+}
+
+/* Card header - FIX OVERFLOW */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(244, 114, 182, 0.08);
+  border-bottom: 1px solid rgba(244, 114, 182, 0.1);
+}
+
+.card-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Card body padding */
+.card-body {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Error highlight */
+.error-word {
+  position: relative;
+  text-decoration: underline wavy #ef4444;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.error-word:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 4px;
+}
+
+/* Scrollbar - sakura style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(244, 114, 182, 0.05);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 114, 182, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 114, 182, 0.5);
+}
+
+/* Loading spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Cursor glow - sakura */
+.cursor-glow {
+  position: fixed;
+  width: 350px;
+  height: 350px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.15) 0%, rgba(253, 164, 175, 0.08) 40%, transparent 70%);
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease;
+  filter: blur(2px);
+}
+
+/* Selection */
+::selection {
+  background: rgba(244, 114, 182, 0.3);
+  color: white;
+}
+
+/* Logo container - improved layout */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 16px;
+  margin-bottom: 8px;
+}
+
+.logo-img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(244, 114, 182, 0.4));
+  margin-bottom: 12px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo-title {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f9a8d4 0%, #f472b6 50%, #fda4af 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.logo-subtitle {
+  font-size: 11px;
+  color: rgba(249, 168, 212, 0.5);
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+/* Page header - centered */
+.page-header {
+  margin-bottom: 24px;
+  text-align: center;
+  display: none;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: rgba(249, 168, 212, 0.5);
+}
+
+/* Swap button */
+.swap-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(244, 114, 182, 0.15);
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.swap-btn:hover {
+  background: rgba(244, 114, 182, 0.25);
+  transform: rotate(180deg);
+}
+
+/* Icon button */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(249, 168, 212, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: rgba(244, 114, 182, 0.15);
+}
+
+/* Divider */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(244, 114, 182, 0.2) 50%, transparent 100%);
+  margin: 16px 0;
+}
+
+/* Main content area - no scroll, fixed height */
+.main-content {
+  flex: 1;
+  padding: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+}
+
+/* Content wrapper with proper spacing */
+.content-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+/* Sakura branch decoration */
+.sakura-branch {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.6;
+}
+
+/* Main layout fix - prevent overflow */
+.min-h-screen {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Fix board spacing */
+.glass-card {
+  margin: 0;
+}
+
+/* Fix button spacing from cards */
+.btn-container {
+  margin-top: 20px;
+  padding: 0 24px;
+}

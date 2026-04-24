@@ -107,18 +107,8 @@ body {
   mix-blend-mode: screen;
   opacity: 0.9;
   filter: saturate(1.15) brightness(1.1);
-  mask-image: radial-gradient(
-    ellipse 70% 80% at 75% 85%,
-    rgba(0, 0, 0, 1) 30%,
-    rgba(0, 0, 0, 0.85) 55%,
-    rgba(0, 0, 0, 0) 95%
-  );
-  -webkit-mask-image: radial-gradient(
-    ellipse 70% 80% at 75% 85%,
-    rgba(0, 0, 0, 1) 30%,
-    rgba(0, 0, 0, 0.85) 55%,
-    rgba(0, 0, 0, 0) 95%
-  );
+  mask-image: linear-gradient(to left, transparent 0%, black 15%, black 100%);
+  -webkit-mask-image: linear-gradient(to left, transparent 0%, black 15%, black 100%);
 }
 
 /* Branch sway */

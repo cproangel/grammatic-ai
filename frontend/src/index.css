@@ -94,12 +94,12 @@ body {
 /* Sakura video layer — pinned to bottom-right, half viewport, black → transparent via screen blend */
 .sakura-video {
   position: fixed;
-  right: 0;
+  left: 0;
   bottom: 0;
   width: 50vw;
   height: 50vh;
   object-fit: contain;
-  object-position: right bottom;
+  object-position: left bottom;
   pointer-events: none;
   z-index: 0;
   mix-blend-mode: screen;

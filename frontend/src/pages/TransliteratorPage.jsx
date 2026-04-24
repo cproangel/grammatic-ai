@@ -9,18 +9,19 @@ const pageVariants = {
 }
 
 // Cyrillic to Latin mapping - Complete
+// Apostrophes: ʻ (U+02BB) for oʻ/gʻ, ʼ (U+02BC) for tutuq belgisi (ъ)
 const cyrillicToLatin = {
   'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v',
-  'Г': 'G', 'г': 'g', 'Ғ': "G'", 'ғ': "g'", 'Д': 'D', 'д': 'd',
+  'Г': 'G', 'г': 'g', 'Ғ': "Gʻ", 'ғ': "gʻ", 'Д': 'D', 'д': 'd',
   'Е': 'E', 'е': 'e', 'Ё': 'Yo', 'ё': 'yo', 'Ж': 'J', 'ж': 'j',
   'З': 'Z', 'з': 'z', 'И': 'I', 'и': 'i', 'Й': 'Y', 'й': 'y',
   'К': 'K', 'к': 'k', 'Қ': 'Q', 'қ': 'q', 'Л': 'L', 'л': 'l',
   'М': 'M', 'м': 'm', 'Н': 'N', 'н': 'n', 'О': 'O', 'о': 'o',
-  'Ў': "O'", 'ў': "o'", 'П': 'P', 'п': 'p', 'Р': 'R', 'р': 'r',
+  'Ў': "Oʻ", 'ў': "oʻ", 'П': 'P', 'п': 'p', 'Р': 'R', 'р': 'r',
   'С': 'S', 'с': 's', 'Т': 'T', 'т': 't', 'У': 'U', 'у': 'u',
   'Ф': 'F', 'ф': 'f', 'Х': 'X', 'х': 'x', 'Ҳ': 'H', 'ҳ': 'h',
   'Ц': 'Ts', 'ц': 'ts', 'Ч': 'Ch', 'ч': 'ch', 'Ш': 'Sh', 'ш': 'sh',
-  'Щ': 'Sh', 'щ': 'sh', 'Ъ': "'", 'ъ': "'", 'Ы': 'I', 'ы': 'i',
+  'Щ': 'Sh', 'щ': 'sh', 'Ъ': "ʼ", 'ъ': "ʼ", 'Ы': 'I', 'ы': 'i',
   'Ь': '', 'ь': '', 'Э': 'E', 'э': 'e', 'Ю': 'Yu', 'ю': 'yu',
   'Я': 'Ya', 'я': 'ya'
 }
@@ -37,14 +38,19 @@ const latinToCyrillic = {
   'X': 'Х', 'x': 'х', 'Y': 'Й', 'y': 'й', 'Z': 'З', 'z': 'з'
 }
 
-// Latin multi-char to Cyrillic - ORDER MATTERS (longest first)
+// Latin multi-char to Cyrillic - ORDER MATTERS (longest first).
+// Accept ASCII ', backtick `, U+02BB ʻ, U+02BC ʼ and U+2019 ’ as apostrophes.
 const latinMultiToCyrillic = [
-  // O' variants (must check before single O)
-  ["O'", 'Ў'], ["o'", 'ў'], ["O'", 'Ў'], ["o'", 'ў'], ["O`", 'Ў'], ["o`", 'ў'],
-  ["Oʻ", 'Ў'], ["oʻ", 'ў'], ["O'", 'Ў'], ["o'", 'ў'],
-  // G' variants
-  ["G'", 'Ғ'], ["g'", 'ғ'], ["G'", 'Ғ'], ["g'", 'ғ'], ["G`", 'Ғ'], ["g`", 'ғ'],
-  ["Gʻ", 'Ғ'], ["gʻ", 'ғ'], ["G'", 'Ғ'], ["g'", 'ғ'],
+  // O' variants → Ў/ў
+  ["Oʻ", 'Ў'], ["oʻ", 'ў'],
+  ["O'", 'Ў'], ["o'", 'ў'],
+  ["O`", 'Ў'], ["o`", 'ў'],
+  ["O\u2019", 'Ў'], ["o\u2019", 'ў'],
+  // G' variants → Ғ/ғ
+  ["Gʻ", 'Ғ'], ["gʻ", 'ғ'],
+  ["G'", 'Ғ'], ["g'", 'ғ'],
+  ["G`", 'Ғ'], ["g`", 'ғ'],
+  ["G\u2019", 'Ғ'], ["g\u2019", 'ғ'],
   // Digraphs
   ['Sh', 'Ш'], ['sh', 'ш'], ['SH', 'Ш'],
   ['Ch', 'Ч'], ['ch', 'ч'], ['CH', 'Ч'],
@@ -52,8 +58,8 @@ const latinMultiToCyrillic = [
   ['Yu', 'Ю'], ['yu', 'ю'], ['YU', 'Ю'],
   ['Ya', 'Я'], ['ya', 'я'], ['YA', 'Я'],
   ['Ts', 'Ц'], ['ts', 'ц'], ['TS', 'Ц'],
-  // Apostrophe variants for ъ
-  ["'", 'ъ'], ["'", 'ъ'], ["ʻ", 'ъ'], ["`", '']
+  // Tutuq belgisi → ъ
+  ["ʼ", 'ъ'], ["'", 'ъ'], ["\u2019", 'ъ'],
 ]
 
 function cyrToLat(text) {
@@ -207,8 +213,8 @@ export default function TransliteratorPage() {
           </div>
           <div className="card-body flex-1 overflow-auto">
             <p className={`text-[15px] leading-[1.8] whitespace-pre-wrap ${outputText ? 'text-white' : 'text-pink-400/40'}`}>
-              {outputText || (direction === 'cyr-to-lat' 
-                ? "Natija shu yerda paydo bo'ladi..." 
+              {outputText || (direction === 'cyr-to-lat'
+                ? "Natija shu yerda paydo boʻladi..."
                 : "Натижа шу ерда пайдо бўлади...")}
             </p>
           </div>
@@ -235,7 +241,7 @@ export default function TransliteratorPage() {
       <div className="mt-4 py-3 px-5 bg-pink-500/5 border border-pink-500/10 rounded-xl flex-shrink-0">
         <p className="text-xs text-pink-400/50 text-center leading-relaxed">
           <span className="text-pink-400/70 font-medium">Maxsus harflar:</span>{' '}
-          Ғ/ғ = G'/g' | Қ/қ = Q/q | <span className="text-pink-400">Ў/ў = O'/o'</span> | Ҳ/ҳ = H/h | Ш/ш = Sh/sh | Ч/ч = Ch/ch
+          Ғ/ғ = Gʻ/gʻ | Қ/қ = Q/q | <span className="text-pink-400">Ў/ў = Oʻ/oʻ</span> | Ҳ/ҳ = H/h | Ш/ш = Sh/sh | Ч/ч = Ch/ch
         </p>
       </div>
     </motion.div>

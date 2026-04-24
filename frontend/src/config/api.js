@@ -8,6 +8,4 @@ export const api = {
   grammarFix: `${API_BASE_URL}/api/grammar/fix`,
   transliterate: `${API_BASE_URL}/api/transliterate`,
   health: `${API_BASE_URL}/api/health`,
-  modelToggle: `${API_BASE_URL}/api/model/toggle`,
-  modelCurrent: `${API_BASE_URL}/api/model/current`,
 };

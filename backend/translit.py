@@ -9,7 +9,7 @@ CYRILLIC_TO_LATIN = {
     'Б': 'B', 'б': 'b',
     'В': 'V', 'в': 'v',
     'Г': 'G', 'г': 'g',
-    'Ғ': "G'", 'ғ': "g'",
+    'Ғ': "Gʻ", 'ғ': "gʻ",
     'Д': 'D', 'д': 'd',
     'Е': 'E', 'е': 'e',
     'Ё': 'Yo', 'ё': 'yo',
@@ -23,7 +23,7 @@ CYRILLIC_TO_LATIN = {
     'М': 'M', 'м': 'm',
     'Н': 'N', 'н': 'n',
     'О': 'O', 'о': 'o',
-    'Ў': "O'", 'ў': "o'",
+    'Ў': "Oʻ", 'ў': "oʻ",
     'П': 'P', 'п': 'p',
     'Р': 'R', 'р': 'r',
     'С': 'S', 'с': 's',
@@ -36,7 +36,7 @@ CYRILLIC_TO_LATIN = {
     'Ч': 'Ch', 'ч': 'ch',
     'Ш': 'Sh', 'ш': 'sh',
     'Щ': 'Sh', 'щ': 'sh',
-    'Ъ': "'", 'ъ': "'",
+    'Ъ': "ʼ", 'ъ': "ʼ",
     'Ы': 'I', 'ы': 'i',
     'Ь': '', 'ь': '',
     'Э': 'E', 'э': 'e',
@@ -73,24 +73,30 @@ LATIN_TO_CYRILLIC = {
 }
 
 # Multi-character Latin to Cyrillic mappings
+# Accept multiple apostrophe variants on input (ASCII ', backtick `, U+02BB ʻ,
+# U+2019 ’) so copy-paste from any source still works.
 LATIN_MULTI_TO_CYRILLIC = {
+    # G' variants → Ғ/ғ
+    "Gʻ": 'Ғ', "gʻ": 'ғ',
     "G'": 'Ғ', "g'": 'ғ',
+    "G`": 'Ғ', "g`": 'ғ',
+    "G\u2019": 'Ғ', "g\u2019": 'ғ',
+    # O' variants → Ў/ў
+    "Oʻ": 'Ў', "oʻ": 'ў',
     "O'": 'Ў', "o'": 'ў',
-    'Sh': 'Ш', 'sh': 'ш',
-    'SH': 'Ш',
-    'Ch': 'Ч', 'ch': 'ч',
-    'CH': 'Ч',
-    'Yo': 'Ё', 'yo': 'ё',
-    'YO': 'Ё',
-    'Yu': 'Ю', 'yu': 'ю',
-    'YU': 'Ю',
-    'Ya': 'Я', 'ya': 'я',
-    'YA': 'Я',
-    'Ts': 'Ц', 'ts': 'ц',
-    'TS': 'Ц',
+    "O`": 'Ў', "o`": 'ў',
+    "O\u2019": 'Ў', "o\u2019": 'ў',
+    # Digraphs
+    'Sh': 'Ш', 'sh': 'ш', 'SH': 'Ш',
+    'Ch': 'Ч', 'ch': 'ч', 'CH': 'Ч',
+    'Yo': 'Ё', 'yo': 'ё', 'YO': 'Ё',
+    'Yu': 'Ю', 'yu': 'ю', 'YU': 'Ю',
+    'Ya': 'Я', 'ya': 'я', 'YA': 'Я',
+    'Ts': 'Ц', 'ts': 'ц', 'TS': 'Ц',
+    # Tutuq belgisi → ъ
+    "ʼ": 'ъ',
     "'": 'ъ',
-    "ʻ": 'ъ',  # Modifier letter turned comma
-    "'": 'ъ',  # Right single quotation mark
+    "\u2019": 'ъ',
 }
 
 
@@ -161,16 +167,16 @@ if __name__ == "__main__":
     print(f"Latin: {cyrToLat(test_cyr)}")
     
     # Test Latin to Cyrillic
-    test_lat = "O'zbekiston Respublikasi"
+    test_lat = "Oʻzbekiston Respublikasi"
     print(f"\nLatin: {test_lat}")
     print(f"Cyrillic: {latToCyr(test_lat)}")
-    
+
     # Test special characters
     print("\n--- Special characters test ---")
     tests = [
-        ("Ғафур", "G'afur"),
+        ("Ғафур", "Gʻafur"),
         ("Қишлоқ", "Qishloq"),
-        ("Ўзбек", "O'zbek"),
+        ("Ўзбек", "Oʻzbek"),
         ("Шаҳар", "Shahar"),
         ("Чорак", "Chorak"),
     ]

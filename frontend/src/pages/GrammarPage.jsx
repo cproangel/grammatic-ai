@@ -163,7 +163,7 @@ export default function GrammarPage() {
             onClick={() => setLanguage('uz')}
             className={`lang-btn ${language === 'uz' ? 'active' : ''}`}
           >
-            O'zbekcha
+            Oʻzbekcha
           </button>
           <button
             onClick={() => setLanguage('ru')}
@@ -248,7 +248,7 @@ export default function GrammarPage() {
                     {language === 'ru' ? 'Ошибок не найдено!' : 'Xatolar topilmadi!'}
                   </p>
                   <p className="text-pink-400/50 text-sm mt-2">
-                    {language === 'ru' ? 'Текст написан правильно' : "Matn to'g'ri yozilgan"}
+                    {language === 'ru' ? 'Текст написан правильно' : "Matn toʻgʻri yozilgan"}
                   </p>
                 </motion.div>
               ) : (

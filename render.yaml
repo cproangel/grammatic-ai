@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: grammatic-backend
+    runtime: docker
+    repo: https://github.com/cproangel/grammatic-ai
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_MODEL
+        value: gemini-3-flash-preview
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      # === Vertex AI (recommended — uses service account JSON) ===
+      - key: GOOGLE_CLOUD_PROJECT
+        sync: false
+      - key: GOOGLE_CLOUD_LOCATION
+        value: us-central1
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
+      # === OR: Developer API (simple key from AI Studio) ===
+      - key: GEMINI_API_KEY
+        sync: false

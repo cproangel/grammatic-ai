@@ -7,9 +7,9 @@ import re
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
-from openai import OpenAI
+from google import genai
+from google.genai import types as genai_types
+from google.genai import errors as genai_errors
 from docx import Document
 from translit import cyrToLat, latToCyr
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -42,42 +42,66 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS
+# CORS — comma-separated list of origins, or "*" for any
+_origins = os.getenv("ALLOWED_ORIGINS", "*").strip()
+allowed_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False if allowed_origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configuration — read models from .env
+# Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-PRIMARY_MODEL = os.getenv("PRIMARY_MODEL", "gemini")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-GPT_MODEL = os.getenv("GPT_MODEL", "gpt-4o")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
-print(f"[CONFIG] PRIMARY_MODEL={PRIMARY_MODEL}, GEMINI_MODEL={GEMINI_MODEL}, GPT_MODEL={GPT_MODEL}")
+# Vertex AI mode (service account JSON)
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
-# Runtime state for model selection
-current_model = PRIMARY_MODEL
+print(f"[CONFIG] GEMINI_MODEL={GEMINI_MODEL}")
 
-# Initialize AI clients
-if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel(GEMINI_MODEL)
-    print(f"[INFO] Gemini configured with model: {GEMINI_MODEL}")
-else:
-    gemini_model = None
-    print("[WARN] Gemini API not configured")
 
-if OPENAI_API_KEY and OPENAI_API_KEY != "your_gpt_api_key_here":
-    openai_client = OpenAI(api_key=OPENAI_API_KEY)
-    print(f"[INFO] OpenAI configured with model: {GPT_MODEL}")
-else:
-    openai_client = None
-    print("[WARN] OpenAI API not configured")
+def _init_gemini_client():
+    """Initialize Gemini client. Prefers Vertex AI (service account) if configured,
+    falls back to Gemini Developer API (simple API key)."""
+    # Vertex AI mode: service account JSON passed via env var
+    if GOOGLE_CREDENTIALS_JSON and GOOGLE_CLOUD_PROJECT:
+        try:
+            import json as _json
+            import tempfile
+            from google.oauth2 import service_account
+
+            sa_info = _json.loads(GOOGLE_CREDENTIALS_JSON)
+            creds = service_account.Credentials.from_service_account_info(
+                sa_info,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+            client = genai.Client(
+                vertexai=True,
+                project=GOOGLE_CLOUD_PROJECT,
+                location=GOOGLE_CLOUD_LOCATION,
+                credentials=creds,
+            )
+            print(f"[INFO] Gemini (Vertex AI) configured — project={GOOGLE_CLOUD_PROJECT}, location={GOOGLE_CLOUD_LOCATION}, model={GEMINI_MODEL}")
+            return client
+        except Exception as e:
+            print(f"[WARN] Vertex AI init failed: {e}")
+            # fall through to API key mode
+
+    # Developer API mode: simple API key
+    if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
+        print(f"[INFO] Gemini (Developer API) configured with model: {GEMINI_MODEL}")
+        return genai.Client(api_key=GEMINI_API_KEY)
+
+    print("[WARN] Gemini not configured — set GOOGLE_APPLICATION_CREDENTIALS_JSON + GOOGLE_CLOUD_PROJECT or GEMINI_API_KEY")
+    return None
+
+
+gemini_client = _init_gemini_client()
 
 
 # Request/Response Models
@@ -131,102 +155,66 @@ class TranslateWithGrammarResponse(BaseModel):
     error_count: int
 
 
-# AI Helper Functions
+def _is_retryable_gemini_error(exc: BaseException) -> bool:
+    """Retry on transient network + server errors + rate limits."""
+    if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError)):
+        return True
+    if isinstance(exc, genai_errors.ServerError):
+        return True
+    if isinstance(exc, genai_errors.ClientError):
+        return getattr(exc, "code", None) == 429
+    return False
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((
-        httpx.TimeoutException,
-        httpx.ConnectError,
-        google_exceptions.ResourceExhausted,
-        google_exceptions.ServiceUnavailable,
-        google_exceptions.InternalServerError,
-        google_exceptions.DeadlineExceeded,
-    )),
-    reraise=True
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError, genai_errors.ClientError)),
+    reraise=True,
 )
 async def call_gemini(prompt: str, system_prompt: str = "") -> str:
-    """Call Gemini API with retry logic"""
-    if not gemini_model:
+    """Call Gemini via google-genai SDK with retry logic."""
+    if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API not configured")
-    
+
     try:
-        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        response = gemini_model.generate_content(full_prompt)
-        return response.text
-    except (google_exceptions.ResourceExhausted, 
-            google_exceptions.ServiceUnavailable, 
-            google_exceptions.InternalServerError,
-            google_exceptions.DeadlineExceeded,
-            httpx.TimeoutException,
-            httpx.ConnectError):
+        config = None
+        if system_prompt:
+            config = genai_types.GenerateContentConfig(system_instruction=system_prompt)
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=config,
+        )
+        return response.text or ""
+    except (httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError):
         raise
+    except genai_errors.ClientError as e:
+        if getattr(e, "code", None) == 429:
+            raise
+        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
 
 
-async def call_gpt(prompt: str, system_prompt: str = "") -> str:
-    """Call GPT API with fallback models"""
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="OpenAI API not configured")
-    
-    system_content = "You are a professional translator and grammar expert for Uzbek and Russian languages."
-    if system_prompt:
-        system_content += "\n\n" + system_prompt
-
-    models_to_try = [GPT_MODEL, "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]
-    
-    last_error = None
-    for model in models_to_try:
-        try:
-            response = openai_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            last_error = e
-            continue
-    
-    raise HTTPException(status_code=500, detail=f"GPT error: {str(last_error)}")
-
-
 async def call_ai(prompt: str, system_prompt: str = "") -> str:
-    """Call AI with fallback based on current_model selection"""
-    global current_model
-    
-    print(f"[AI] Requested model: {current_model}")
-    
-    if current_model == "gemini" and gemini_model:
-        try:
-            print(f"[AI] Using GEMINI (model: {GEMINI_MODEL})")
-            return await call_gemini(prompt, system_prompt)
-        except Exception as e:
-            print(f"[AI] Gemini failed: {e}, falling back to GPT")
-            if openai_client:
-                return await call_gpt(prompt, system_prompt)
-            raise
-    elif current_model == "gpt" and openai_client:
-        try:
-            print(f"[AI] Using GPT (model: {GPT_MODEL})")
-            return await call_gpt(prompt, system_prompt)
-        except Exception as e:
-            print(f"[AI] GPT failed: {e}, falling back to Gemini")
-            if gemini_model:
-                return await call_gemini(prompt, system_prompt)
-            raise
-    elif gemini_model:
-        print(f"[AI] Fallback to GEMINI")
-        return await call_gemini(prompt, system_prompt)
-    elif openai_client:
-        print(f"[AI] Fallback to GPT")
-        return await call_gpt(prompt, system_prompt)
-    else:
-        raise HTTPException(status_code=500, detail="No AI model configured. Please add API keys to .env file.")
+    """Call Gemini (single-provider mode)."""
+    if not gemini_client:
+        raise HTTPException(status_code=500, detail="Gemini API not configured. Add GEMINI_API_KEY to .env")
+    return await call_gemini(prompt, system_prompt)
+
+
+_UZBEK_OG_APOSTROPHE_RE = re.compile(r"([oOgG])[\'`\u2019]")
+_UZBEK_GENERIC_APOSTROPHE_RE = re.compile(r"(?<=\w)[\'`\u2019](?=\w)")
+
+
+def normalize_uzbek_apostrophes(text: str) -> str:
+    """Normalize ASCII ' / ` / U+2019 in Uzbek text to correct Unicode:
+    - o'/O'/g'/G' → oʻ/Oʻ/gʻ/Gʻ (U+02BB MODIFIER LETTER TURNED COMMA, 6-shape)
+    - other internal ' → ʼ (U+02BC MODIFIER LETTER APOSTROPHE, 9-shape, tutuq belgisi)"""
+    text = _UZBEK_OG_APOSTROPHE_RE.sub(lambda m: m.group(1) + "ʻ", text)
+    text = _UZBEK_GENERIC_APOSTROPHE_RE.sub("ʼ", text)
+    return text
 
 
 def compute_offsets(text: str, errors: list) -> list:
@@ -277,13 +265,13 @@ def get_uzbek_system_ctx(mode: str = "check") -> str:
     ctx = (
         "You MUST follow the official Uzbek orthography rules. "
         "Pay special attention to commonly confused letters:\n"
-        "- 'h' vs 'x': h=bo'g'iz undoshi (hujjat, hudud, hamma, bahor), "
-        "x=chuqur til orqa undoshi (xabar, xo'roz, baxt, xo'jalik)\n"
-        "- Correct: mahalla, hujjat, hudud, loyiha, zaxira, xo'jalik, xodim\n"
-        "- Wrong: maxalla, xujjat, xudud, loyixa, zahira, ho'jalik, hodim\n\n"
+        "- 'h' vs 'x': h=boʻgʻiz undoshi (hujjat, hudud, hamma, bahor), "
+        "x=chuqur til orqa undoshi (xabar, xoʻroz, baxt, xoʻjalik)\n"
+        "- Correct: mahalla, hujjat, hudud, loyiha, zaxira, xoʻjalik, xodim\n"
+        "- Wrong: maxalla, xujjat, xudud, loyixa, zahira, hoʻjalik, hodim\n\n"
     )
     if IMLO_RULES:
-        ctx += f"=== O'ZBEK TILI IMLO QOIDALARI ===\n{IMLO_RULES}"
+        ctx += f"=== OʻZBEK TILI IMLO QOIDALARI ===\n{IMLO_RULES}"
     return ctx
 
 
@@ -300,47 +288,8 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "gemini_configured": gemini_model is not None,
-        "gpt_configured": openai_client is not None,
+        "gemini_configured": gemini_client is not None,
         "gemini_model": GEMINI_MODEL,
-        "gpt_model": GPT_MODEL,
-        "primary_model": PRIMARY_MODEL,
-        "current_model": current_model
-    }
-
-
-class ModelToggleRequest(BaseModel):
-    model: str  # 'gemini' or 'gpt'
-
-
-@app.post("/api/model/toggle")
-async def toggle_model(request: ModelToggleRequest):
-    """Toggle between Gemini and GPT models"""
-    global current_model
-    
-    if request.model not in ["gemini", "gpt"]:
-        raise HTTPException(status_code=400, detail="Invalid model. Use 'gemini' or 'gpt'")
-    
-    if request.model == "gemini" and not gemini_model:
-        raise HTTPException(status_code=400, detail="Gemini API is not configured")
-    if request.model == "gpt" and not openai_client:
-        raise HTTPException(status_code=400, detail="OpenAI API is not configured")
-    
-    current_model = request.model
-    return {
-        "success": True,
-        "current_model": current_model,
-        "message": f"Switched to {current_model.upper()}"
-    }
-
-
-@app.get("/api/model/current")
-async def get_current_model():
-    """Get the currently selected model"""
-    return {
-        "current_model": current_model,
-        "gemini_available": gemini_model is not None,
-        "gpt_available": openai_client is not None
     }
 
 
@@ -357,7 +306,10 @@ async def translate(request: TranslateRequest):
         script_instruction = (
             "\nIMPORTANT: The Uzbek translation MUST be written strictly in Latin script (lotin yozuvi), "
             "NOT in Cyrillic. Use the official Uzbek Latin alphabet with characters like "
-            "o', g', sh, ch, etc. Never use Cyrillic letters in the output."
+            "oʻ, gʻ, sh, ch, etc. Never use Cyrillic letters in the output. "
+            "CRITICAL apostrophe rules: use ʻ (U+02BB, curled like 6) in oʻ/gʻ; "
+            "use ʼ (U+02BC, curled like 9) for tutuq belgisi (eʼlon, maʼno, taʼlim). "
+            "Never use plain ASCII ' for these."
         )
 
     prompt = f"""Translate the following text from {source_name} to {target_name}.
@@ -380,9 +332,12 @@ Translation:"""
         system_ctx = get_uzbek_system_ctx()
 
     translated = await call_ai(prompt, system_ctx)
-    
+    translated = translated.strip()
+    if request.target_lang == "uz":
+        translated = normalize_uzbek_apostrophes(translated)
+
     return TranslateResponse(
-        translated_text=translated.strip(),
+        translated_text=translated,
         source_lang=request.source_lang,
         target_lang=request.target_lang
     )
@@ -393,12 +348,15 @@ async def check_grammar(request: GrammarCheckRequest):
     """Check grammar and spelling errors with accurate highlighting"""
     
     lang_name = "Uzbek" if request.language == "uz" else "Russian"
-    response_lang = "o'zbek tilida" if request.language == "uz" else "на русском языке"
-    
+    response_lang = "oʻzbek tilida" if request.language == "uz" else "на русском языке"
+
+    # Normalize apostrophes in the input so offsets match what the user sees
+    input_text = normalize_uzbek_apostrophes(request.text) if request.language == "uz" else request.text
+
     prompt = f"""Analyze the following {lang_name} text for REAL errors only.
 
 Text to check:
-\"\"\"{request.text}\"\"\"
+\"\"\"{input_text}\"\"\"
 
 STRICT RULES:
 - ONLY report ACTUAL spelling, grammar, or punctuation errors
@@ -440,10 +398,18 @@ If NO errors found: {{"errors": [], "corrected_text": "original text unchanged"}
         data = json.loads(result)
         
         raw_errors = data.get("errors", [])
-        corrected = data.get("corrected_text", request.text)
-        
+        corrected = data.get("corrected_text", input_text)
+
+        if request.language == "uz":
+            corrected = normalize_uzbek_apostrophes(corrected)
+            for e in raw_errors:
+                if e.get("word"):
+                    e["word"] = normalize_uzbek_apostrophes(e["word"])
+                if e.get("suggestion"):
+                    e["suggestion"] = normalize_uzbek_apostrophes(e["suggestion"])
+
         # Compute accurate offsets on the server side
-        raw_errors = compute_offsets(request.text, raw_errors)
+        raw_errors = compute_offsets(input_text, raw_errors)
         
         # Deduplicate errors (same word at same position)
         seen = set()
@@ -464,7 +430,7 @@ If NO errors found: {{"errors": [], "corrected_text": "original text unchanged"}
     except json.JSONDecodeError:
         return GrammarCheckResponse(
             errors=[],
-            corrected_text=request.text,
+            corrected_text=input_text,
             error_count=0
         )
 
@@ -487,8 +453,11 @@ Corrected text:"""
         system_ctx = get_uzbek_system_ctx("fix")
 
     corrected = await call_ai(prompt, system_ctx)
-    
-    return {"corrected_text": corrected.strip()}
+    corrected = corrected.strip()
+    if request.language == "uz":
+        corrected = normalize_uzbek_apostrophes(corrected)
+
+    return {"corrected_text": corrected}
 
 
 @app.post("/api/translate-with-grammar", response_model=TranslateWithGrammarResponse)
@@ -515,6 +484,9 @@ async def translate_with_grammar(request: TranslateRequest):
         corrected = translated_text
         errors = []
         error_count = 0
+
+    if request.target_lang == "uz":
+        corrected = normalize_uzbek_apostrophes(corrected)
     
     return TranslateWithGrammarResponse(
         translated_text=translated_text,

@@ -32,7 +32,7 @@ cd grammatic-ai
     ```
 2.  Скопируйте пример:
     *   **Linux/Mac:** `cp .env.example .env`
-3.  Откройте файл `.env` (например, через `nano .env`) и впишите свои ключи `GEMINI_API_KEY` и `OPENAI_API_KEY`.
+3.  Откройте файл `.env` (например, через `nano .env`) и впишите свой ключ `GEMINI_API_KEY`.
     *   Сохранить в nano: `Ctrl+O`, затем `Enter`.
     *   Выйти: `Ctrl+X`.
 4.  Вернитесь назад:

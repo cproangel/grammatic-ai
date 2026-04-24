@@ -136,7 +136,7 @@ export default function TranslatorPage() {
             onClick={() => setSource('uz')}
             className={`lang-btn ${sourceLang === 'uz' ? 'active' : ''}`}
           >
-            O'zbekcha
+            Oʻzbekcha
           </button>
         </div>
 
@@ -160,7 +160,7 @@ export default function TranslatorPage() {
             onClick={() => setTarget('uz')}
             className={`lang-btn ${targetLang === 'uz' ? 'active' : ''}`}
           >
-            O'zbekcha
+            Oʻzbekcha
           </button>
         </div>
 
@@ -173,7 +173,7 @@ export default function TranslatorPage() {
         <div className="glass-card flex flex-col overflow-hidden">
           <div className="card-header">
             <span className="card-header-title">
-              {sourceLang === 'ru' ? 'Русский' : "O'zbekcha"}
+              {sourceLang === 'ru' ? 'Русский' : "Oʻzbekcha"}
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -202,7 +202,7 @@ export default function TranslatorPage() {
         <div className="glass-card flex flex-col overflow-hidden">
           <div className="card-header">
             <span className="card-header-title">
-              {targetLang === 'ru' ? 'Русский' : "O'zbekcha"}
+              {targetLang === 'ru' ? 'Русский' : "Oʻzbekcha"}
             </span>
             <div className="flex items-center gap-1">
               {/* Grammar correction indicator */}
@@ -239,7 +239,7 @@ export default function TranslatorPage() {
             ) : (
               <div className="h-full">
                 <p className={`text-[15px] leading-[1.8] whitespace-pre-wrap ${translatedText ? 'text-white' : 'text-pink-400/40'}`}>
-                  {showCorrected && correctedText ? correctedText : (translatedText || (targetLang === 'ru' ? 'Перевод появится здесь...' : "Tarjima shu yerda paydo bo'ladi..."))}
+                  {showCorrected && correctedText ? correctedText : (translatedText || (targetLang === 'ru' ? 'Перевод появится здесь...' : "Tarjima shu yerda paydo boʻladi..."))}
                 </p>
 
                 {/* Apply corrected version button */}
@@ -252,7 +252,7 @@ export default function TranslatorPage() {
                     whileHover={{ scale: 1.02 }}
                   >
                     <CheckCircle size={14} />
-                    Tuzatilgan versiyani qo'llash
+                    Tuzatilgan versiyani qoʻllash
                   </motion.button>
                 )}
               </div>

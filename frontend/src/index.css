@@ -91,17 +91,19 @@ body {
   overflow: hidden;
 }
 
-/* Sakura video layer — behind everything, black pixels disappear via screen blend */
+/* Sakura video layer — pinned to bottom-right, half viewport, black → transparent via screen blend */
 .sakura-video {
   position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  object-fit: cover;
+  right: 0;
+  bottom: 0;
+  width: 50vw;
+  height: 50vh;
+  object-fit: contain;
+  object-position: right bottom;
   pointer-events: none;
   z-index: 0;
   mix-blend-mode: screen;
-  opacity: 0.85;
+  opacity: 0.9;
   filter: saturate(1.15) brightness(1.1);
 }
 

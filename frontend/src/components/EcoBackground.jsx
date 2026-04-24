@@ -242,22 +242,6 @@ export default function EcoBackground() {
           }}
         />
 
-        {/* SVG tree, subtle parallax */}
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 0,
-            width: 620,
-            height: 620,
-            transform: `translate(${parallax.x * -8}px, ${parallax.y * -4}px)`,
-            transition: 'transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1)',
-            willChange: 'transform',
-          }}
-        >
-          <SakuraTree />
-        </div>
-
         <FallingPetals parallax={parallax} />
       </div>
     </>

@@ -101,8 +101,8 @@ const SakuraTree = () => {
         position: 'absolute',
         right: -40,
         bottom: -60,
-        opacity: 0.32,
-        filter: 'drop-shadow(0 0 20px rgba(236, 72, 153, 0.15))',
+        opacity: 0.18,
+        filter: 'drop-shadow(0 0 20px rgba(236, 72, 153, 0.1))',
       }}
       aria-hidden="true"
     >

@@ -109,7 +109,17 @@ function App() {
 
       {/* Main */}
       <main className="relative z-10 flex-1 h-screen min-w-0 p-6 pl-2 overflow-hidden">
-        <div className="h-full glass rounded-3xl p-6 flex flex-col overflow-hidden" style={{ backdropFilter: 'blur(24px)' }}>
+        <div
+          className="h-full rounded-3xl p-6 flex flex-col overflow-hidden border border-pink-500/15"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(20,8,24,0.35) 0%, rgba(10,6,16,0.25) 100%)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 40px -20px rgba(0,0,0,0.6)',
+          }}
+        >
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
               <Route path="/"         element={<TranslatorPage />} />

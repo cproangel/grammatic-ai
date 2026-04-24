@@ -1,248 +1,297 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowRightLeft, Copy, Trash2, RefreshCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Copy, Trash2, ArrowDownUp, Sparkles } from 'lucide-react'
 
-const pageVariants = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
-}
+// Correct Unicode apostrophes
+const U_LEFT = '\u02BB'   // ʻ — for Oʻzbek, Gʻalaba
+const U_RIGHT = '\u02BC'  // ʼ — for eʼlon, maʼno
 
-// Cyrillic to Latin mapping - Complete
-// Apostrophes: ʻ (U+02BB) for oʻ/gʻ, ʼ (U+02BC) for tutuq belgisi (ъ)
-const cyrillicToLatin = {
-  'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v',
-  'Г': 'G', 'г': 'g', 'Ғ': "Gʻ", 'ғ': "gʻ", 'Д': 'D', 'д': 'd',
-  'Е': 'E', 'е': 'e', 'Ё': 'Yo', 'ё': 'yo', 'Ж': 'J', 'ж': 'j',
-  'З': 'Z', 'з': 'z', 'И': 'I', 'и': 'i', 'Й': 'Y', 'й': 'y',
-  'К': 'K', 'к': 'k', 'Қ': 'Q', 'қ': 'q', 'Л': 'L', 'л': 'l',
-  'М': 'M', 'м': 'm', 'Н': 'N', 'н': 'n', 'О': 'O', 'о': 'o',
-  'Ў': "Oʻ", 'ў': "oʻ", 'П': 'P', 'п': 'p', 'Р': 'R', 'р': 'r',
-  'С': 'S', 'с': 's', 'Т': 'T', 'т': 't', 'У': 'U', 'у': 'u',
-  'Ф': 'F', 'ф': 'f', 'Х': 'X', 'х': 'x', 'Ҳ': 'H', 'ҳ': 'h',
-  'Ц': 'Ts', 'ц': 'ts', 'Ч': 'Ch', 'ч': 'ch', 'Ш': 'Sh', 'ш': 'sh',
-  'Щ': 'Sh', 'щ': 'sh', 'Ъ': "ʼ", 'ъ': "ʼ", 'Ы': 'I', 'ы': 'i',
-  'Ь': '', 'ь': '', 'Э': 'E', 'э': 'e', 'Ю': 'Yu', 'ю': 'yu',
-  'Я': 'Ya', 'я': 'ya'
-}
-
-// Latin to Cyrillic - Single characters
-const latinToCyrillic = {
-  'A': 'А', 'a': 'а', 'B': 'Б', 'b': 'б', 'D': 'Д', 'd': 'д',
-  'E': 'Е', 'e': 'е', 'F': 'Ф', 'f': 'ф', 'G': 'Г', 'g': 'г',
-  'H': 'Ҳ', 'h': 'ҳ', 'I': 'И', 'i': 'и', 'J': 'Ж', 'j': 'ж',
-  'K': 'К', 'k': 'к', 'L': 'Л', 'l': 'л', 'M': 'М', 'm': 'м',
-  'N': 'Н', 'n': 'н', 'O': 'О', 'o': 'о', 'P': 'П', 'p': 'п',
-  'Q': 'Қ', 'q': 'қ', 'R': 'Р', 'r': 'р', 'S': 'С', 's': 'с',
-  'T': 'Т', 't': 'т', 'U': 'У', 'u': 'у', 'V': 'В', 'v': 'в',
-  'X': 'Х', 'x': 'х', 'Y': 'Й', 'y': 'й', 'Z': 'З', 'z': 'з'
-}
-
-// Latin multi-char to Cyrillic - ORDER MATTERS (longest first).
-// Accept ASCII ', backtick `, U+02BB ʻ, U+02BC ʼ and U+2019 ’ as apostrophes.
-const latinMultiToCyrillic = [
-  // O' variants → Ў/ў
-  ["Oʻ", 'Ў'], ["oʻ", 'ў'],
-  ["O'", 'Ў'], ["o'", 'ў'],
-  ["O`", 'Ў'], ["o`", 'ў'],
-  ["O\u2019", 'Ў'], ["o\u2019", 'ў'],
-  // G' variants → Ғ/ғ
-  ["Gʻ", 'Ғ'], ["gʻ", 'ғ'],
-  ["G'", 'Ғ'], ["g'", 'ғ'],
-  ["G`", 'Ғ'], ["g`", 'ғ'],
-  ["G\u2019", 'Ғ'], ["g\u2019", 'ғ'],
-  // Digraphs
-  ['Sh', 'Ш'], ['sh', 'ш'], ['SH', 'Ш'],
-  ['Ch', 'Ч'], ['ch', 'ч'], ['CH', 'Ч'],
-  ['Yo', 'Ё'], ['yo', 'ё'], ['YO', 'Ё'],
-  ['Yu', 'Ю'], ['yu', 'ю'], ['YU', 'Ю'],
-  ['Ya', 'Я'], ['ya', 'я'], ['YA', 'Я'],
-  ['Ts', 'Ц'], ['ts', 'ц'], ['TS', 'Ц'],
-  // Tutuq belgisi → ъ
-  ["ʼ", 'ъ'], ["'", 'ъ'], ["\u2019", 'ъ'],
+// Cyrillic → Latin (multigraphs first)
+const CYR_TO_LAT = [
+  ['Ў', `O${U_LEFT}`], ['ў', `o${U_LEFT}`],
+  ['Ғ', `G${U_LEFT}`], ['ғ', `g${U_LEFT}`],
+  ['Ш', 'Sh'], ['ш', 'sh'],
+  ['Ч', 'Ch'], ['ч', 'ch'],
+  ['Ё', 'Yo'], ['ё', 'yo'],
+  ['Ю', 'Yu'], ['ю', 'yu'],
+  ['Я', 'Ya'], ['я', 'ya'],
+  ['Ц', 'Ts'], ['ц', 'ts'],
+  ['Щ', 'Shch'], ['щ', 'shch'],
+  ['Ъ', U_RIGHT], ['ъ', U_RIGHT],
+  ['Ь', ''], ['ь', ''],
+  ['Ҳ', 'H'], ['ҳ', 'h'],
+  ['Қ', 'Q'], ['қ', 'q'],
+  ['А', 'A'], ['а', 'a'],
+  ['Б', 'B'], ['б', 'b'],
+  ['В', 'V'], ['в', 'v'],
+  ['Г', 'G'], ['г', 'g'],
+  ['Д', 'D'], ['д', 'd'],
+  ['Е', 'E'], ['е', 'e'],
+  ['Ж', 'J'], ['ж', 'j'],
+  ['З', 'Z'], ['з', 'z'],
+  ['И', 'I'], ['и', 'i'],
+  ['Й', 'Y'], ['й', 'y'],
+  ['К', 'K'], ['к', 'k'],
+  ['Л', 'L'], ['л', 'l'],
+  ['М', 'M'], ['м', 'm'],
+  ['Н', 'N'], ['н', 'n'],
+  ['О', 'O'], ['о', 'o'],
+  ['П', 'P'], ['п', 'p'],
+  ['Р', 'R'], ['р', 'r'],
+  ['С', 'S'], ['с', 's'],
+  ['Т', 'T'], ['т', 't'],
+  ['У', 'U'], ['у', 'u'],
+  ['Ф', 'F'], ['ф', 'f'],
+  ['Х', 'X'], ['х', 'x'],
+  ['Ы', 'I'], ['ы', 'i'],
+  ['Э', 'E'], ['э', 'e'],
 ]
 
-function cyrToLat(text) {
-  let result = ''
-  for (let char of text) {
-    result += cyrillicToLatin[char] !== undefined ? cyrillicToLatin[char] : char
-  }
-  return result
+const cyrToLat = (s) => {
+  let out = s
+  CYR_TO_LAT.forEach(([c, l]) => { out = out.split(c).join(l) })
+  return out
 }
 
-function latToCyr(text) {
-  let result = ''
-  let i = 0
-  
-  while (i < text.length) {
-    let found = false
-    
-    // Try multi-char sequences first
-    for (const [latin, cyrillic] of latinMultiToCyrillic) {
-      if (text.slice(i, i + latin.length) === latin) {
-        result += cyrillic
-        i += latin.length
-        found = true
-        break
-      }
-    }
-    
-    if (!found) {
-      const char = text[i]
-      result += latinToCyrillic[char] !== undefined ? latinToCyrillic[char] : char
-      i++
-    }
-  }
-  
-  return result
+// Latin → Cyrillic (longest-first)
+const LAT_TO_CYR = [
+  [`O${U_LEFT}`, 'Ў'], [`o${U_LEFT}`, 'ў'],
+  [`G${U_LEFT}`, 'Ғ'], [`g${U_LEFT}`, 'ғ'],
+  [`O'`, 'Ў'], [`o'`, 'ў'],
+  [`G'`, 'Ғ'], [`g'`, 'ғ'],
+  [`O\u2019`, 'Ў'], [`o\u2019`, 'ў'],
+  [`G\u2019`, 'Ғ'], [`g\u2019`, 'ғ'],
+  ['Shch', 'Щ'], ['shch', 'щ'],
+  ['Sh', 'Ш'], ['sh', 'ш'],
+  ['Ch', 'Ч'], ['ch', 'ч'],
+  ['Yo', 'Ё'], ['yo', 'ё'],
+  ['Yu', 'Ю'], ['yu', 'ю'],
+  ['Ya', 'Я'], ['ya', 'я'],
+  ['Ts', 'Ц'], ['ts', 'ц'],
+  [U_RIGHT, 'ъ'], ["'", 'ъ'], ['\u2019', 'ъ'],
+  ['Q', 'Қ'], ['q', 'қ'],
+  ['H', 'Ҳ'], ['h', 'ҳ'],
+  ['X', 'Х'], ['x', 'х'],
+  ['A', 'А'], ['a', 'а'],
+  ['B', 'Б'], ['b', 'б'],
+  ['V', 'В'], ['v', 'в'],
+  ['G', 'Г'], ['g', 'г'],
+  ['D', 'Д'], ['d', 'д'],
+  ['E', 'Е'], ['e', 'е'],
+  ['J', 'Ж'], ['j', 'ж'],
+  ['Z', 'З'], ['z', 'з'],
+  ['I', 'И'], ['i', 'и'],
+  ['Y', 'Й'], ['y', 'й'],
+  ['K', 'К'], ['k', 'к'],
+  ['L', 'Л'], ['l', 'л'],
+  ['M', 'М'], ['m', 'м'],
+  ['N', 'Н'], ['n', 'н'],
+  ['O', 'О'], ['o', 'о'],
+  ['P', 'П'], ['p', 'п'],
+  ['R', 'Р'], ['r', 'р'],
+  ['S', 'С'], ['s', 'с'],
+  ['T', 'Т'], ['t', 'т'],
+  ['U', 'У'], ['u', 'у'],
+  ['F', 'Ф'], ['f', 'ф'],
+]
+
+const latToCyr = (s) => {
+  let out = s
+  LAT_TO_CYR.forEach(([l, c]) => { out = out.split(l).join(c) })
+  return out
 }
+
+const EXAMPLES = [
+  { cyr: 'Ўзбекистон', lat: `O${U_LEFT}zbekiston` },
+  { cyr: 'эълон',      lat: `e${U_RIGHT}lon` },
+  { cyr: 'маъно',      lat: `ma${U_RIGHT}no` },
+  { cyr: 'таълим',     lat: `ta${U_RIGHT}lim` },
+  { cyr: 'ғалаба',     lat: `g${U_LEFT}alaba` },
+]
+
+const PinkToggle = ({ on, setOn, label }) => (
+  <button type="button" onClick={() => setOn(!on)} className="flex items-center gap-2.5 group">
+    <div className={`pink-toggle ${on ? 'on' : ''}`}>
+      <motion.span
+        className="knob"
+        animate={{ x: on ? 18 : 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+      />
+    </div>
+    {label && (
+      <span className={`text-[12.5px] font-medium transition-colors ${on ? 'text-pink-300' : 'text-white/60 group-hover:text-white/80'}`}>
+        {label}
+      </span>
+    )}
+  </button>
+)
+
+const LangBadge = ({ children, dim = false }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
+    dim
+      ? 'text-pink-400/70 bg-white/[0.03] border border-white/5'
+      : 'text-pink-300 bg-pink-500/15 border border-pink-500/30'
+  }`}>{children}</span>
+)
+
+const SwapButton = ({ onClick }) => (
+  <motion.button
+    onClick={onClick}
+    whileHover={{ rotate: 180, scale: 1.08 }}
+    whileTap={{ scale: 0.92 }}
+    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+    className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-200 flex items-center justify-center shadow-[0_0_20px_-4px_rgba(236,72,153,0.5)] hover:bg-pink-500/30 transition-colors"
+  >
+    <ArrowDownUp size={18} />
+  </motion.button>
+)
+
+const CardIconBtn = ({ children, onClick, title }) => (
+  <motion.button
+    onClick={onClick}
+    title={title}
+    whileHover={{ scale: 1.1, backgroundColor: 'rgba(236,72,153,0.18)' }}
+    whileTap={{ scale: 0.92 }}
+    className="w-7 h-7 rounded-md flex items-center justify-center text-pink-400/70 hover:text-pink-300 transition-colors"
+  >
+    {children}
+  </motion.button>
+)
 
 export default function TransliteratorPage() {
-  const [direction, setDirection] = useState('cyr-to-lat')
-  const [inputText, setInputText] = useState('')
-  const [outputText, setOutputText] = useState('')
+  const [fromCyr, setFromCyr] = useState(true)
+  const [input, setInput] = useState('')
+  const [output, setOutput] = useState('')
   const [realtime, setRealtime] = useState(true)
 
   useEffect(() => {
-    if (realtime) convert()
-  }, [inputText, direction, realtime])
+    if (!realtime) return
+    const t = setTimeout(() => {
+      setOutput(fromCyr ? cyrToLat(input) : latToCyr(input))
+    }, 100)
+    return () => clearTimeout(t)
+  }, [input, fromCyr, realtime])
 
-  const convert = () => {
-    setOutputText(direction === 'cyr-to-lat' ? cyrToLat(inputText) : latToCyr(inputText))
+  const swap = () => {
+    setFromCyr((v) => !v)
+    setInput(output)
+    setOutput(input)
   }
 
-  const swapDirection = () => {
-    setDirection(direction === 'cyr-to-lat' ? 'lat-to-cyr' : 'cyr-to-lat')
-    setInputText(outputText)
-    setOutputText(inputText)
+  const insertExample = (ex) => {
+    const v = fromCyr ? ex.cyr : ex.lat
+    setInput(v)
   }
 
-  const copyToClipboard = (text) => navigator.clipboard.writeText(text)
-  const clearAll = () => { setInputText(''); setOutputText('') }
+  const fromLabel = fromCyr ? 'Кирилл' : 'Lotin'
+  const toLabel = fromCyr ? 'Lotin' : 'Кирилл'
 
   return (
     <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={{ duration: 0.3 }}
-      className="h-full flex flex-col overflow-hidden gap-6"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
+      className="flex flex-col gap-5 h-full"
     >
-      {/* Direction Selector & Toggle */}
-      <div className="flex items-center justify-center gap-4 flex-shrink-0">
-        <div className={`px-6 py-3 rounded-xl text-sm font-medium transition-all ${
-          direction === 'cyr-to-lat' 
-            ? 'bg-pink-500/20 border border-pink-500/30 text-pink-400' 
-            : 'bg-black/20 border border-pink-500/10 text-pink-400/50'
-        }`}>
-          Кирилл
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-pink-200 tracking-tight">Transliterator</h1>
+          <p className="text-pink-400/60 text-[13px] mt-0.5">
+            Кирилл ⇄ Lotin — Oʻzbek imlosiga rioya qilinadi
+          </p>
         </div>
-
-        <motion.button
-          onClick={swapDirection}
-          className="swap-btn"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <ArrowRightLeft size={18} />
-        </motion.button>
-
-        <div className={`px-6 py-3 rounded-xl text-sm font-medium transition-all ${
-          direction === 'lat-to-cyr' 
-            ? 'bg-pink-500/20 border border-pink-500/30 text-pink-400' 
-            : 'bg-black/20 border border-pink-500/10 text-pink-400/50'
-        }`}>
-          Lotin
-        </div>
-        
-        {/* Realtime Toggle */}
-        <label className="flex items-center gap-3 cursor-pointer select-none ml-6">
-          <span className="text-sm text-pink-400/60">Real-time</span>
-          <div 
-            className={`w-12 h-6 rounded-full transition-colors relative ${realtime ? 'bg-pink-500' : 'bg-pink-900/50'}`}
-            onClick={() => setRealtime(!realtime)}
-          >
-            <motion.div
-              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow"
-              animate={{ left: realtime ? 28 : 4 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            />
-          </div>
-        </label>
+        <PinkToggle on={realtime} setOn={setRealtime} label="Real-time" />
       </div>
 
-      {/* Conversion Areas */}
-      <div className="flex-1 grid grid-cols-2 gap-5 min-h-0 pb-4">
-        {/* Input */}
-        <div className="glass-card flex flex-col overflow-hidden">
-          <div className="card-header">
-            <span className="card-header-title">
-              {direction === 'cyr-to-lat' ? 'Кирилл' : 'Lotin'}
-            </span>
+      <div className="glass rounded-2xl px-5 py-3 flex items-center justify-center gap-5">
+        <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{fromLabel}</LangBadge>
+        <SwapButton onClick={swap} />
+        <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{toLabel}</LangBadge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-5 min-h-0 flex-1">
+        <motion.div
+          whileHover={{ y: -2, boxShadow: '0 20px 40px -20px rgba(236,72,153,0.25)' }}
+          transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+          className="glass rounded-2xl flex flex-col overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <LangBadge dim>{fromLabel}</LangBadge>
             <div className="flex items-center gap-1">
-              <button onClick={() => copyToClipboard(inputText)} className="icon-btn">
-                <Copy size={14} />
-              </button>
-              <button onClick={clearAll} className="icon-btn">
-                <Trash2 size={14} />
-              </button>
+              <CardIconBtn title="Tozalash" onClick={() => setInput('')}><Trash2 size={15} /></CardIconBtn>
+              <CardIconBtn title="Nusxa olish" onClick={() => navigator.clipboard?.writeText(input)}><Copy size={15} /></CardIconBtn>
             </div>
           </div>
-          <div className="card-body flex-1 min-h-0">
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={direction === 'cyr-to-lat' 
-                ? 'Кирилл ёзувида матн киритинг...' 
-                : 'Lotin yozuvida matn kiriting...'}
-              className="textarea-modern"
-            />
-          </div>
-        </div>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={fromCyr ? 'Матнни киритинг…' : 'Matnni kiriting…'}
+            className="flex-1 bg-transparent px-5 py-4 text-white/90 text-[15px] leading-relaxed resize-none outline-none placeholder-white/25"
+          />
+        </motion.div>
 
-        {/* Output */}
-        <div className="glass-card flex flex-col overflow-hidden">
-          <div className="card-header">
-            <span className="card-header-title">
-              {direction === 'cyr-to-lat' ? 'Lotin' : 'Кирилл'}
-            </span>
-            <button onClick={() => copyToClipboard(outputText)} className="icon-btn">
-              <Copy size={14} />
-            </button>
+        <motion.div
+          whileHover={{ y: -2, boxShadow: '0 20px 40px -20px rgba(236,72,153,0.25)' }}
+          transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+          className="glass rounded-2xl flex flex-col overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <LangBadge>{toLabel}</LangBadge>
+            <div className="flex items-center gap-1">
+              <CardIconBtn title="Nusxa olish" onClick={() => navigator.clipboard?.writeText(output)}><Copy size={15} /></CardIconBtn>
+              <CardIconBtn title="Tozalash" onClick={() => setOutput('')}><Trash2 size={15} /></CardIconBtn>
+            </div>
           </div>
-          <div className="card-body flex-1 overflow-auto">
-            <p className={`text-[15px] leading-[1.8] whitespace-pre-wrap ${outputText ? 'text-white' : 'text-pink-400/40'}`}>
-              {outputText || (direction === 'cyr-to-lat'
-                ? "Natija shu yerda paydo boʻladi..."
-                : "Натижа шу ерда пайдо бўлади...")}
-            </p>
+          <div className="flex-1 px-5 py-4 overflow-auto">
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={output}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap"
+              >
+                {output || (
+                  <span className="text-white/25">
+                    {fromCyr ? 'Натижа шу ерда пайдо бўлади…' : 'Natija bu yerda paydo boʻladi…'}
+                  </span>
+                )}
+              </motion.p>
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Convert Button */}
-      {!realtime && (
-        <div className="flex justify-center pt-6 pb-4 flex-shrink-0">
-          <motion.button
-            onClick={convert}
-            disabled={!inputText.trim()}
-            className="btn-primary flex items-center gap-3"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <RefreshCw size={18} />
-            <span>Konvertatsiya qilish</span>
-          </motion.button>
+      {/* Examples */}
+      <div className="glass rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles size={15} className="text-pink-400/70" />
+          <span className="text-[12px] uppercase tracking-wider text-pink-400/70 font-semibold">
+            Namunalar
+          </span>
+          <span className="h-px flex-1 bg-pink-500/15" />
+          <span className="text-[11px] text-pink-400/50">ustiga bosing</span>
         </div>
-      )}
-
-      {/* Reference */}
-      <div className="mt-4 py-3 px-5 bg-pink-500/5 border border-pink-500/10 rounded-xl flex-shrink-0">
-        <p className="text-xs text-pink-400/50 text-center leading-relaxed">
-          <span className="text-pink-400/70 font-medium">Maxsus harflar:</span>{' '}
-          Ғ/ғ = Gʻ/gʻ | Қ/қ = Q/q | <span className="text-pink-400">Ў/ў = Oʻ/oʻ</span> | Ҳ/ҳ = H/h | Ш/ш = Sh/sh | Ч/ч = Ch/ch
-        </p>
+        <div className="flex flex-wrap gap-2">
+          {EXAMPLES.map((ex, i) => (
+            <motion.button
+              key={ex.cyr}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
+              whileHover={{ y: -2, backgroundColor: 'rgba(236,72,153,0.2)', borderColor: 'rgba(236,72,153,0.5)' }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => insertExample(ex)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-[13px] transition-all"
+            >
+              <span className="text-pink-200 font-medium">{ex.cyr}</span>
+              <span className="text-pink-400/50">→</span>
+              <span className="text-pink-300/90 font-medium tracking-tight">{ex.lat}</span>
+            </motion.button>
+          ))}
+        </div>
       </div>
     </motion.div>
   )

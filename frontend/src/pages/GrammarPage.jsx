@@ -1,335 +1,315 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, AlertCircle, Wand2, Copy, Trash2, ArrowRight, Pencil } from 'lucide-react'
+import { Copy, Trash2, Check, Sparkles } from 'lucide-react'
 import axios from 'axios'
 import { api } from '../config/api'
 
-const pageVariants = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
+const LangBadge = ({ children, dim = false }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
+    dim
+      ? 'text-pink-400/70 bg-white/[0.03] border border-white/5'
+      : 'text-pink-300 bg-pink-500/15 border border-pink-500/30'
+  }`}>{children}</span>
+)
+
+const CardIconBtn = ({ children, onClick, title }) => (
+  <motion.button
+    onClick={onClick}
+    title={title}
+    whileHover={{ scale: 1.1, backgroundColor: 'rgba(236,72,153,0.18)' }}
+    whileTap={{ scale: 0.92 }}
+    className="w-7 h-7 rounded-md flex items-center justify-center text-pink-400/70 hover:text-pink-300 transition-colors"
+  >
+    {children}
+  </motion.button>
+)
+
+// Build spans: interleave plain text + error tokens from backend errors[]
+// Uses offset/length when valid; falls back to word-search otherwise.
+function buildSegments(text, errors) {
+  if (!errors?.length) return [{ type: 'text', text }]
+
+  const valid = errors
+    .filter((e) => typeof e.offset === 'number' && e.offset >= 0 && typeof e.length === 'number' && e.length > 0 && e.offset + e.length <= text.length)
+    .sort((a, b) => a.offset - b.offset)
+
+  if (!valid.length) {
+    // Fallback — search by word
+    const out = []
+    let remaining = text
+    let cursor = 0
+    errors.forEach((err, i) => {
+      if (!err.word) return
+      const idx = remaining.indexOf(err.word)
+      if (idx === -1) return
+      if (idx > 0) out.push({ type: 'text', text: remaining.slice(0, idx) })
+      out.push({ type: 'err', text: err.word, err, key: `err-${cursor + idx}-${i}` })
+      remaining = remaining.slice(idx + err.word.length)
+      cursor += idx + err.word.length
+    })
+    if (remaining) out.push({ type: 'text', text: remaining })
+    return out.length ? out : [{ type: 'text', text }]
+  }
+
+  const out = []
+  let last = 0
+  valid.forEach((err, i) => {
+    if (err.offset > last) out.push({ type: 'text', text: text.slice(last, err.offset) })
+    out.push({ type: 'err', text: text.slice(err.offset, err.offset + err.length), err, key: `err-${err.offset}-${i}` })
+    last = err.offset + err.length
+  })
+  if (last < text.length) out.push({ type: 'text', text: text.slice(last) })
+  return out
 }
 
 export default function GrammarPage() {
-  const [language, setLanguage] = useState('uz')
-  const [inputText, setInputText] = useState('')
+  const [lang, setLang] = useState('uz')
+  const [text, setText] = useState('')
   const [errors, setErrors] = useState([])
   const [correctedText, setCorrectedText] = useState('')
-  const [isChecking, setIsChecking] = useState(false)
-  const [isFixing, setIsFixing] = useState(false)
-  const [showResults, setShowResults] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [hoverKey, setHoverKey] = useState(null)
+  const abortRef = useRef(null)
 
-  const handleCheck = async () => {
-    if (!inputText.trim()) return
-
-    setIsChecking(true)
-    setShowResults(false)
-
-    try {
-      const response = await axios.post(api.grammarCheck, {
-        text: inputText,
-        language: language
-      })
-      setErrors(response.data.errors || [])
-      setCorrectedText(response.data.corrected_text || inputText)
-      setShowResults(true)
-    } catch (error) {
-      console.error('Grammar check error:', error)
-      const errorMsg = language === 'ru'
-        ? 'Произошла ошибка при проверке'
-        : 'Tekshirishda xatolik yuz berdi'
-      setErrors([{ message: errorMsg, type: 'error' }])
-    } finally {
-      setIsChecking(false)
-    }
-  }
-
-  const handleFixAll = async () => {
-    if (!correctedText) return
-
-    setIsFixing(true)
-    try {
-      setInputText(correctedText)
+  // Auto-check with debounce when text is typed (500ms idle)
+  useEffect(() => {
+    if (!text.trim()) {
       setErrors([])
-      setShowResults(false)
-    } finally {
-      setIsFixing(false)
+      setCorrectedText('')
+      return
     }
-  }
+    const t = setTimeout(() => void runCheck(), 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, lang])
 
-  const clearAll = () => {
-    setInputText('')
-    setErrors([])
-    setCorrectedText('')
-    setShowResults(false)
-  }
+  const runCheck = async () => {
+    if (!text.trim()) return
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
-  const backToEdit = () => {
-    setShowResults(false)
-    setErrors([])
-    setCorrectedText('')
-  }
-
-  const copyText = (text) => {
-    navigator.clipboard.writeText(text)
-  }
-
-  const renderHighlightedText = () => {
-    if (!showResults || errors.length === 0) {
-      return <span>{inputText}</span>
-    }
-
-    // Filter errors that have valid offsets (>= 0)
-    const validErrors = errors.filter(e =>
-      e.offset !== undefined && e.offset >= 0 &&
-      e.length !== undefined && e.length > 0 &&
-      e.offset + e.length <= inputText.length
-    )
-
-    if (validErrors.length === 0) {
-      // Fallback: try to find error words by searching in text
-      const fallbackElements = []
-      let remainingText = inputText
-      let globalOffset = 0
-
-      errors.forEach((error, idx) => {
-        if (!error.word) return
-        const wordIdx = remainingText.indexOf(error.word)
-        if (wordIdx === -1) return
-
-        if (wordIdx > 0) {
-          fallbackElements.push(
-            <span key={`pre-${idx}`}>{remainingText.slice(0, wordIdx)}</span>
-          )
-        }
-        fallbackElements.push(
-          <span key={`err-${idx}`} className="error-word" title={error.message || 'Xatolik'}>
-            {error.word}
-          </span>
-        )
-        remainingText = remainingText.slice(wordIdx + error.word.length)
-      })
-
-      if (remainingText) {
-        fallbackElements.push(<span key="rest">{remainingText}</span>)
-      }
-
-      return fallbackElements.length > 1 ? fallbackElements : <span>{inputText}</span>
-    }
-
-    // Use server-computed offsets
-    const sortedErrors = [...validErrors].sort((a, b) => a.offset - b.offset)
-    const elements = []
-    let lastIndex = 0
-
-    sortedErrors.forEach((error, idx) => {
-      if (error.offset > lastIndex) {
-        elements.push(
-          <span key={`text-${idx}`}>{inputText.slice(lastIndex, error.offset)}</span>
-        )
-      }
-      elements.push(
-        <span
-          key={`error-${idx}`}
-          className="error-word"
-          title={error.message || 'Xatolik'}
-        >
-          {inputText.slice(error.offset, error.offset + error.length)}
-        </span>
+    setChecking(true)
+    setErrorMsg('')
+    try {
+      const res = await axios.post(
+        api.grammarCheck,
+        { text, language: lang },
+        { signal: controller.signal, timeout: 30000 },
       )
-      lastIndex = error.offset + error.length
-    })
-
-    if (lastIndex < inputText.length) {
-      elements.push(<span key="text-end">{inputText.slice(lastIndex)}</span>)
+      setErrors(res.data.errors || [])
+      setCorrectedText(res.data.corrected_text || text)
+    } catch (err) {
+      if (err.name === 'CanceledError' || err.name === 'AbortError') return
+      console.error('Grammar error:', err)
+      setErrorMsg(err?.response?.data?.detail || (lang === 'ru' ? 'Ошибка проверки' : 'Tekshiruvda xatolik'))
+    } finally {
+      setChecking(false)
     }
-
-    return elements.length > 0 ? elements : <span>{inputText}</span>
   }
+
+  const applySingle = (err) => {
+    if (!err?.suggestion || !err?.word) return
+    const newText = text.split(err.word).join(err.suggestion)
+    setText(newText)
+    setHoverKey(null)
+  }
+
+  const applyAll = () => {
+    if (correctedText && correctedText !== text) {
+      setText(correctedText)
+      setErrors([])
+      setHoverKey(null)
+    }
+  }
+
+  const segments = useMemo(() => buildSegments(text, errors), [text, errors])
+  const errorCount = errors.length
 
   return (
     <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={{ duration: 0.3 }}
-      className="h-full flex flex-col overflow-hidden gap-6"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
+      className="flex flex-col gap-5 h-full"
     >
-      {/* Language Selector */}
-      <div className="flex justify-center flex-shrink-0">
-        <div className="lang-selector">
-          <button
-            onClick={() => setLanguage('uz')}
-            className={`lang-btn ${language === 'uz' ? 'active' : ''}`}
-          >
-            Oʻzbekcha
-          </button>
-          <button
-            onClick={() => setLanguage('ru')}
-            className={`lang-btn ${language === 'ru' ? 'active' : ''}`}
-          >
-            Русский
-          </button>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-pink-200 tracking-tight">Grammatika</h1>
+          <p className="text-pink-400/60 text-[13px] mt-0.5">
+            AI matningizdagi xatolarni topadi va tuzatadi
+          </p>
+        </div>
+
+        <div className="glass rounded-xl p-1 flex items-center">
+          {[
+            { k: 'ru', label: 'Русский' },
+            { k: 'uz', label: 'Oʻzbekcha' },
+          ].map((opt) => (
+            <button
+              key={opt.k}
+              onClick={() => setLang(opt.k)}
+              className={`relative px-4 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors ${
+                lang === opt.k ? 'text-pink-200' : 'text-white/50 hover:text-white/80'
+              }`}
+            >
+              {lang === opt.k && (
+                <motion.span
+                  layoutId="grammar-lang-pill"
+                  className="absolute inset-0 bg-pink-500/20 border border-pink-500/30 rounded-lg"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative">{opt.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 grid grid-cols-3 gap-5 min-h-0 pb-4">
-        {/* Input Area */}
-        <div className="col-span-2 glass-card flex flex-col overflow-hidden">
-          <div className="card-header">
-            <span className="card-header-title">
-              {language === 'ru' ? 'Текст' : 'Matn'}
-            </span>
-            <div className="flex items-center gap-1">
-              {showResults && (
-                <button onClick={backToEdit} className="icon-btn" title={language === 'ru' ? 'Редактировать' : 'Tahrirlash'}>
-                  <Pencil size={14} />
-                </button>
-              )}
-              <button onClick={() => copyText(inputText)} className="icon-btn">
-                <Copy size={14} />
-              </button>
-              <button onClick={clearAll} className="icon-btn">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div className="card-body flex-1 min-h-0">
-            {showResults ? (
-              <div
-                className="text-[15px] leading-[1.8] whitespace-pre-wrap text-white h-full overflow-auto cursor-pointer hover:bg-white/5 rounded-lg p-2 transition-colors"
-                onClick={backToEdit}
-                title={language === 'ru' ? 'Нажмите для редактирования' : 'Tahrirlash uchun bosing'}
+      {/* Main editor card */}
+      <motion.div
+        whileHover={{ y: -2 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+        className="glass rounded-2xl flex-1 min-h-0 flex flex-col overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <LangBadge>{lang === 'ru' ? 'Русский' : 'Oʻzbekcha'}</LangBadge>
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={`${errorCount}-${checking}`}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                className={`text-[12px] px-2 py-0.5 rounded-md border ${
+                  checking
+                    ? 'bg-pink-500/10 text-pink-300/80 border-pink-500/20'
+                    : errorCount > 0
+                      ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                      : text.trim()
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
+                        : 'bg-white/5 text-white/30 border-white/10'
+                }`}
               >
-                {renderHighlightedText()}
-              </div>
-            ) : (
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder={language === 'ru'
-                  ? 'Введите текст для проверки...'
-                  : "Tekshirish uchun matn kiriting..."}
-                className="textarea-modern"
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Errors Panel */}
-        <div className="glass-card flex flex-col overflow-hidden">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <AlertCircle size={16} className="text-amber-400" />
-              <span className="card-header-title">
-                {language === 'ru' ? 'Ошибки' : 'Xatolar'}
-              </span>
-            </div>
-            {errors.length > 0 && (
-              <span className="px-2.5 py-1 bg-amber-500/20 text-amber-400 text-xs font-medium rounded-full">
-                {errors.length}
-              </span>
-            )}
-          </div>
-
-          <div className="flex-1 p-4 overflow-auto space-y-3">
-            <AnimatePresence>
-              {showResults && errors.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center justify-center h-full text-center p-4"
-                >
-                  <CheckCircle size={48} className="text-pink-400 mb-3" />
-                  <p className="text-pink-400 font-semibold">
-                    {language === 'ru' ? 'Ошибок не найдено!' : 'Xatolar topilmadi!'}
-                  </p>
-                  <p className="text-pink-400/50 text-sm mt-2">
-                    {language === 'ru' ? 'Текст написан правильно' : "Matn toʻgʻri yozilgan"}
-                  </p>
-                </motion.div>
-              ) : (
-                errors.map((error, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl"
-                  >
-                    <p className="text-red-400 text-sm font-semibold mb-1">
-                      {error.word || (language === 'ru' ? 'Ошибка' : 'Xatolik')}
-                    </p>
-                    <p className="text-slate-300 text-xs leading-relaxed">
-                      {error.message}
-                    </p>
-                    {error.suggestion && (
-                      <div className="mt-2 pt-2 border-t border-pink-500/20 flex items-center gap-2">
-                        <ArrowRight size={12} className="text-pink-400" />
-                        <span className="text-pink-400 text-xs font-medium">
-                          {error.suggestion}
-                        </span>
-                      </div>
-                    )}
-                  </motion.div>
-                ))
-              )}
+                {checking
+                  ? (lang === 'ru' ? 'Проверка…' : 'Tekshirilmoqda…')
+                  : errorCount > 0
+                    ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
+                    : text.trim()
+                      ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
+                      : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
+              </motion.span>
             </AnimatePresence>
-
-            {!showResults && (
-              <div className="flex items-center justify-center h-full text-pink-400/40 text-sm text-center px-4">
-                {language === 'ru'
-                  ? 'Нажмите "Проверить" для проверки текста'
-                  : 'Matnni tekshirish uchun "Tekshirish" tugmasini bosing'}
-              </div>
-            )}
           </div>
+          <div className="flex items-center gap-1">
+            <CardIconBtn title="Tozalash" onClick={() => setText('')}><Trash2 size={15} /></CardIconBtn>
+            <CardIconBtn title="Nusxa olish" onClick={() => navigator.clipboard?.writeText(text)}><Copy size={15} /></CardIconBtn>
+          </div>
+        </div>
 
-          {showResults && errors.length > 0 && (
-            <div className="p-4 border-t border-pink-500/10 flex-shrink-0">
-              <motion.button
-                onClick={handleFixAll}
-                disabled={isFixing}
-                className="w-full py-3 bg-pink-500/15 border border-pink-500/25 rounded-xl text-pink-400 font-medium flex items-center justify-center gap-2 hover:bg-pink-500/25 transition-colors"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                {isFixing ? (
-                  <div className="spinner" />
-                ) : (
-                  <Wand2 size={18} />
-                )}
-                {language === 'ru' ? 'Исправить все' : 'Hammasini tuzatish'}
-              </motion.button>
-            </div>
+        {/* Annotated view */}
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 text-white/90 text-[16px] leading-[1.85] whitespace-pre-wrap relative">
+          {text.trim() ? (
+            segments.map((seg, i) => {
+              if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
+              const isHover = hoverKey === seg.key
+              return (
+                <span
+                  key={seg.key}
+                  className="relative wavy-error"
+                  style={{ color: '#fce7f3' }}
+                  onMouseEnter={() => setHoverKey(seg.key)}
+                  onMouseLeave={() => setHoverKey((p) => (p === seg.key ? null : p))}
+                >
+                  {seg.text}
+                  <AnimatePresence>
+                    {isHover && (seg.err.suggestion || seg.err.message) && (
+                      <motion.span
+                        initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                        transition={{ duration: 0.18 }}
+                        className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 w-[280px] glass rounded-xl p-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.7)]"
+                        style={{ pointerEvents: 'auto' }}
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[11px] uppercase tracking-wider text-pink-400/70 font-semibold">
+                            {lang === 'ru' ? 'Предложение' : 'Taklif'}
+                          </span>
+                          <span className="h-px flex-1 bg-pink-500/20" />
+                        </div>
+                        {seg.err.suggestion && (
+                          <div className="flex items-baseline gap-2 mb-2">
+                            <span className="text-white/40 line-through text-[13px]">{seg.text}</span>
+                            <span className="text-pink-400/50">→</span>
+                            <span className="text-pink-200 font-semibold text-[15px]">{seg.err.suggestion}</span>
+                          </div>
+                        )}
+                        {seg.err.message && (
+                          <div className="text-[11.5px] text-pink-400/80 leading-snug mb-2.5">
+                            {seg.err.message}
+                          </div>
+                        )}
+                        {seg.err.suggestion && (
+                          <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={(e) => { e.stopPropagation(); applySingle(seg.err) }}
+                            className="w-full py-1.5 rounded-lg bg-pink-500/25 hover:bg-pink-500/40 border border-pink-500/40 text-pink-100 text-[12px] font-medium flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <Check size={13} />
+                            {lang === 'ru' ? 'Применить' : 'Qoʻllash'}
+                          </motion.button>
+                        )}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </span>
+              )
+            })
+          ) : (
+            <span className="text-white/25">
+              {lang === 'ru' ? 'Введите текст в редактор ниже…' : 'Quyidagi redaktorga matn kiriting…'}
+            </span>
           )}
         </div>
-      </div>
 
-      {/* Check Button */}
-      <div className="flex justify-center pt-6 pb-4 flex-shrink-0">
+        {/* Editor input */}
+        <div className="border-t border-white/5 p-4">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            placeholder={lang === 'ru' ? 'Редактируйте текст здесь…' : 'Matnni shu yerda tahrirlang…'}
+            className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-3 text-white/80 text-[13.5px] resize-none outline-none focus:border-pink-500/40 focus:bg-black/40 transition-colors placeholder-white/25"
+          />
+          {errorMsg && <div className="mt-2 text-rose-300/80 text-[12px]">{errorMsg}</div>}
+        </div>
+      </motion.div>
+
+      {/* Apply all */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-[12px] text-pink-400/60">
+          {lang === 'ru'
+            ? 'Наведите на подчёркнутое слово — увидите предложение по исправлению.'
+            : 'Tagi chizilgan soʻz ustiga olib boring — taklifni koʻrasiz.'}
+        </div>
         <motion.button
-          onClick={handleCheck}
-          disabled={isChecking || !inputText.trim()}
-          className="btn-primary flex items-center gap-3"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          onClick={applyAll}
+          disabled={!correctedText || correctedText === text}
+          whileHover={correctedText && correctedText !== text ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
+          whileTap={correctedText && correctedText !== text ? { scale: 0.97 } : {}}
+          className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
+            correctedText && correctedText !== text
+              ? 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
+              : 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'
+          }`}
         >
-          {isChecking ? (
-            <>
-              <div className="spinner" />
-              <span>{language === 'ru' ? 'Проверка...' : 'Tekshirilmoqda...'}</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle size={18} />
-              <span>{language === 'ru' ? 'Проверить' : 'Tekshirish'}</span>
-            </>
-          )}
+          <Sparkles size={15} />
+          {lang === 'ru' ? 'Применить все исправления' : 'Tuzatilgan versiyani qoʻllash'}
         </motion.button>
       </div>
     </motion.div>

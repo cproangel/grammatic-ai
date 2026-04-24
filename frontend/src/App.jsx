@@ -40,7 +40,7 @@ function App() {
               EcoLingua<span className="text-pink-400">AI</span>
             </div>
             <div className="text-[10.5px] text-pink-400/60 leading-snug mt-0.5 tracking-wide">
-              Davlat ekologik<br />ekspertizasi markazi
+              Ekologiya va iqlim o‘zgarishi<br />milliy qo‘mitasi
             </div>
           </div>
         </motion.div>

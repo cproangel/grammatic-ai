@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, ArrowDownUp, Sparkles } from 'lucide-react'
 
@@ -109,23 +109,6 @@ const EXAMPLES = [
   { cyr: 'ғалаба',     lat: `g${U_LEFT}alaba` },
 ]
 
-const PinkToggle = ({ on, setOn, label }) => (
-  <button type="button" onClick={() => setOn(!on)} className="flex items-center gap-2.5 group">
-    <div className={`pink-toggle ${on ? 'on' : ''}`}>
-      <motion.span
-        className="knob"
-        animate={{ x: on ? 18 : 0 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-      />
-    </div>
-    {label && (
-      <span className={`text-[12.5px] font-medium transition-colors ${on ? 'text-pink-300' : 'text-white/60 group-hover:text-white/80'}`}>
-        {label}
-      </span>
-    )}
-  </button>
-)
-
 const LangBadge = ({ children, dim = false }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
     dim
@@ -162,15 +145,10 @@ export default function TransliteratorPage() {
   const [fromCyr, setFromCyr] = useState(true)
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
-  const [realtime, setRealtime] = useState(true)
 
-  useEffect(() => {
-    if (!realtime) return
-    const t = setTimeout(() => {
-      setOutput(fromCyr ? cyrToLat(input) : latToCyr(input))
-    }, 100)
-    return () => clearTimeout(t)
-  }, [input, fromCyr, realtime])
+  const doConvert = () => {
+    setOutput(fromCyr ? cyrToLat(input) : latToCyr(input))
+  }
 
   const swap = () => {
     setFromCyr((v) => !v)
@@ -201,7 +179,6 @@ export default function TransliteratorPage() {
             Кирилл ⇄ Lotin — Oʻzbek imlosiga rioya qilinadi
           </p>
         </div>
-        <PinkToggle on={realtime} setOn={setRealtime} label="Real-time" />
       </div>
 
       <div className="glass rounded-2xl px-5 py-3 flex items-center justify-center gap-5">
@@ -262,6 +239,24 @@ export default function TransliteratorPage() {
             </AnimatePresence>
           </div>
         </motion.div>
+      </div>
+
+      {/* Action button */}
+      <div className="flex justify-center">
+        <motion.button
+          onClick={doConvert}
+          disabled={!input.trim()}
+          whileHover={input.trim() ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.6)' } : {}}
+          whileTap={input.trim() ? { scale: 0.97 } : {}}
+          className={`px-6 py-3 rounded-xl font-semibold text-white flex items-center gap-2 transition-all ${
+            !input.trim()
+              ? 'bg-white/10 text-white/40 cursor-not-allowed'
+              : 'bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.7)]'
+          }`}
+        >
+          <Sparkles size={17} />
+          Oʻtkazish
+        </motion.button>
       </div>
 
       {/* Examples */}

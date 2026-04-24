@@ -1,25 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, Sparkles, Volume2, ArrowDownUp, CheckCircle2 } from 'lucide-react'
 import axios from 'axios'
 import { api } from '../config/api'
-
-const PinkToggle = ({ on, setOn, label }) => (
-  <button type="button" onClick={() => setOn(!on)} className="flex items-center gap-2.5 group">
-    <div className={`pink-toggle ${on ? 'on' : ''}`}>
-      <motion.span
-        className="knob"
-        animate={{ x: on ? 18 : 0 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-      />
-    </div>
-    {label && (
-      <span className={`text-[12.5px] font-medium transition-colors ${on ? 'text-pink-300' : 'text-white/60 group-hover:text-white/80'}`}>
-        {label}
-      </span>
-    )}
-  </button>
-)
 
 const LangBadge = ({ children, dim = false }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
@@ -59,7 +42,6 @@ export default function TranslatorPage() {
   const [fromRu, setFromRu] = useState(true)
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
-  const [realtime, setRealtime] = useState(true)
   const [loading, setLoading] = useState(false)
   const [latencyMs, setLatencyMs] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
@@ -99,14 +81,6 @@ export default function TranslatorPage() {
     }
   }
 
-  // Realtime debounced translation
-  useEffect(() => {
-    if (!realtime) return
-    const t = setTimeout(() => doTranslate(input), 600)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, fromRu, realtime])
-
   const swap = () => {
     setFromRu((v) => !v)
     setInput(output)
@@ -125,9 +99,8 @@ export default function TranslatorPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-pink-200 tracking-tight">Tarjimon</h1>
-          <p className="text-pink-400/60 text-[13px] mt-0.5">Русский ⇄ Oʻzbekcha — AI-tarjima real vaqtda</p>
+          <p className="text-pink-400/60 text-[13px] mt-0.5">Русский ⇄ Oʻzbekcha — AI-tarjima</p>
         </div>
-        <PinkToggle on={realtime} setOn={setRealtime} label="Real-time" />
       </div>
 
       {/* Direction bar */}
@@ -218,39 +191,29 @@ export default function TranslatorPage() {
             </AnimatePresence>
           </div>
           <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-pink-400/50">
-            <span className="flex items-center gap-1.5"><Sparkles size={13} />Gemini 3 Flash</span>
+            <span className="flex items-center gap-1.5"><Sparkles size={13} />Gemini 2.5 Flash</span>
             <span>{latencyMs != null ? `~${(latencyMs / 1000).toFixed(1)}s` : '—'}</span>
           </div>
         </motion.div>
       </div>
 
-      {/* Manual button when real-time off */}
-      <AnimatePresence>
-        {!realtime && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: 10, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex justify-center"
-          >
-            <motion.button
-              onClick={() => doTranslate()}
-              disabled={loading || !input.trim()}
-              whileHover={!loading && input.trim() ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.6)' } : {}}
-              whileTap={!loading && input.trim() ? { scale: 0.97 } : {}}
-              className={`px-6 py-3 rounded-xl font-semibold text-white flex items-center gap-2 transition-all ${
-                loading || !input.trim()
-                  ? 'bg-white/10 text-white/40 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.7)]'
-              }`}
-            >
-              {loading ? <CheckCircle2 size={17} className="animate-spin" /> : <Sparkles size={17} />}
-              Tarjima qilish
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Action button */}
+      <div className="flex justify-center">
+        <motion.button
+          onClick={() => doTranslate()}
+          disabled={loading || !input.trim()}
+          whileHover={!loading && input.trim() ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.6)' } : {}}
+          whileTap={!loading && input.trim() ? { scale: 0.97 } : {}}
+          className={`px-6 py-3 rounded-xl font-semibold text-white flex items-center gap-2 transition-all ${
+            loading || !input.trim()
+              ? 'bg-white/10 text-white/40 cursor-not-allowed'
+              : 'bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_30px_-10px_rgba(236,72,153,0.7)]'
+          }`}
+        >
+          {loading ? <CheckCircle2 size={17} className="animate-spin" /> : <Sparkles size={17} />}
+          Tarjima qilish
+        </motion.button>
+      </div>
     </motion.div>
   )
 }

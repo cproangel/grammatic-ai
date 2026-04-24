@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, Check, Sparkles } from 'lucide-react'
 import axios from 'axios'
@@ -71,18 +71,6 @@ export default function GrammarPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const [hoverKey, setHoverKey] = useState(null)
   const abortRef = useRef(null)
-
-  // Auto-check with debounce when text is typed (500ms idle)
-  useEffect(() => {
-    if (!text.trim()) {
-      setErrors([])
-      setCorrectedText('')
-      return
-    }
-    const t = setTimeout(() => void runCheck(), 900)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, lang])
 
   const runCheck = async () => {
     if (!text.trim()) return
@@ -290,27 +278,43 @@ export default function GrammarPage() {
         </div>
       </motion.div>
 
-      {/* Apply all */}
+      {/* Actions */}
       <div className="flex items-center justify-between gap-4">
         <div className="text-[12px] text-pink-400/60">
           {lang === 'ru'
             ? 'Наведите на подчёркнутое слово — увидите предложение по исправлению.'
             : 'Tagi chizilgan soʻz ustiga olib boring — taklifni koʻrasiz.'}
         </div>
-        <motion.button
-          onClick={applyAll}
-          disabled={!correctedText || correctedText === text}
-          whileHover={correctedText && correctedText !== text ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
-          whileTap={correctedText && correctedText !== text ? { scale: 0.97 } : {}}
-          className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
-            correctedText && correctedText !== text
-              ? 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
-              : 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'
-          }`}
-        >
-          <Sparkles size={15} />
-          {lang === 'ru' ? 'Применить все исправления' : 'Tuzatilgan versiyani qoʻllash'}
-        </motion.button>
+        <div className="flex items-center gap-3">
+          <motion.button
+            onClick={runCheck}
+            disabled={checking || !text.trim()}
+            whileHover={!checking && text.trim() ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
+            whileTap={!checking && text.trim() ? { scale: 0.97 } : {}}
+            className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
+              checking || !text.trim()
+                ? 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'
+                : 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
+            }`}
+          >
+            <Sparkles size={15} />
+            {lang === 'ru' ? 'Проверить' : 'Tekshirish'}
+          </motion.button>
+          <motion.button
+            onClick={applyAll}
+            disabled={!correctedText || correctedText === text}
+            whileHover={correctedText && correctedText !== text ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
+            whileTap={correctedText && correctedText !== text ? { scale: 0.97 } : {}}
+            className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
+              correctedText && correctedText !== text
+                ? 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
+                : 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'
+            }`}
+          >
+            <Check size={15} />
+            {lang === 'ru' ? 'Применить все' : 'Hammasini qoʻllash'}
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   )

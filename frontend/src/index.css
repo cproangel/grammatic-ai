@@ -91,7 +91,9 @@ body {
   overflow: hidden;
 }
 
-/* Sakura video layer — pinned to bottom-right, half viewport, black → transparent via screen blend */
+/* Sakura video layer — half off-screen to the left, right half anchored
+   at the bottom-left corner. Radial mask softens all edges so there's
+   no visible rectangle/compression halo from the screen blend. */
 .sakura-video {
   position: fixed;
   left: -25vw;
@@ -105,6 +107,18 @@ body {
   mix-blend-mode: screen;
   opacity: 0.9;
   filter: saturate(1.15) brightness(1.1);
+  mask-image: radial-gradient(
+    ellipse 70% 80% at 75% 85%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0) 95%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 80% at 75% 85%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0) 95%
+  );
 }
 
 /* Branch sway */

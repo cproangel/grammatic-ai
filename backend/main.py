@@ -48,6 +48,7 @@ allowed_origins = ["*"] if _origins == "*" else [o.strip() for o in _origins.spl
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https://([a-z0-9-]+--)?[a-z0-9-]+\.netlify\.app",
     allow_credentials=False if allowed_origins == ["*"] else True,
     allow_methods=["*"],
     allow_headers=["*"],

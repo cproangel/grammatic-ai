@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, Check, Sparkles } from 'lucide-react'
 import axios from 'axios'
@@ -70,6 +71,7 @@ export default function GrammarPage() {
   const [checking, setChecking] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [hoverKey, setHoverKey] = useState(null)
+  const [hoverPos, setHoverPos] = useState(null)
   const abortRef = useRef(null)
 
   const runCheck = async () => {
@@ -102,6 +104,7 @@ export default function GrammarPage() {
     const newText = text.split(err.word).join(err.suggestion)
     setText(newText)
     setHoverKey(null)
+    setHoverPos(null)
   }
 
   const applyAll = () => {
@@ -109,13 +112,19 @@ export default function GrammarPage() {
       setText(correctedText)
       setErrors([])
       setHoverKey(null)
+      setHoverPos(null)
     }
   }
 
   const segments = useMemo(() => buildSegments(text, errors), [text, errors])
   const errorCount = errors.length
+  const activeSeg = useMemo(
+    () => (hoverKey ? segments.find((s) => s.type === 'err' && s.key === hoverKey) : null),
+    [hoverKey, segments],
+  )
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
@@ -200,69 +209,27 @@ export default function GrammarPage() {
 
         {/* Annotated view */}
         <div className="flex-1 min-h-0 overflow-auto px-6 py-5 text-white/90 text-[16px] leading-[1.85] whitespace-pre-wrap relative">
-          {text.trim() ? (
-            segments.map((seg, i) => {
-              if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
-              const isHover = hoverKey === seg.key
-              return (
-                <span
-                  key={seg.key}
-                  className="relative wavy-error"
-                  style={{ color: '#fce7f3' }}
-                  onMouseEnter={() => setHoverKey(seg.key)}
-                  onMouseLeave={() => setHoverKey((p) => (p === seg.key ? null : p))}
-                >
-                  {seg.text}
-                  <AnimatePresence>
-                    {isHover && (seg.err.suggestion || seg.err.message) && (
-                      <motion.span
-                        initial={{ opacity: 0, y: -4, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -4, scale: 0.96 }}
-                        transition={{ duration: 0.18 }}
-                        className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 w-[280px] glass rounded-xl p-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.7)]"
-                        style={{ pointerEvents: 'auto' }}
-                      >
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[11px] uppercase tracking-wider text-pink-400/70 font-semibold">
-                            {lang === 'ru' ? 'Предложение' : 'Taklif'}
-                          </span>
-                          <span className="h-px flex-1 bg-pink-500/20" />
-                        </div>
-                        {seg.err.suggestion && (
-                          <div className="flex items-baseline gap-2 mb-2">
-                            <span className="text-white/40 line-through text-[13px]">{seg.text}</span>
-                            <span className="text-pink-400/50">→</span>
-                            <span className="text-pink-200 font-semibold text-[15px]">{seg.err.suggestion}</span>
-                          </div>
-                        )}
-                        {seg.err.message && (
-                          <div className="text-[11.5px] text-pink-400/80 leading-snug mb-2.5">
-                            {seg.err.message}
-                          </div>
-                        )}
-                        {seg.err.suggestion && (
-                          <motion.button
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={(e) => { e.stopPropagation(); applySingle(seg.err) }}
-                            className="w-full py-1.5 rounded-lg bg-pink-500/25 hover:bg-pink-500/40 border border-pink-500/40 text-pink-100 text-[12px] font-medium flex items-center justify-center gap-1.5 transition-colors"
-                          >
-                            <Check size={13} />
-                            {lang === 'ru' ? 'Применить' : 'Qoʻllash'}
-                          </motion.button>
-                        )}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </span>
-              )
-            })
-          ) : (
-            <span className="text-white/25">
-              {lang === 'ru' ? 'Введите текст в редактор ниже…' : 'Quyidagi redaktorga matn kiriting…'}
-            </span>
-          )}
+          {text.trim() && segments.map((seg, i) => {
+            if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
+            return (
+              <span
+                key={seg.key}
+                className="relative wavy-error"
+                style={{ color: '#fce7f3' }}
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setHoverKey(seg.key)
+                  setHoverPos({ left: rect.left + rect.width / 2, top: rect.bottom })
+                }}
+                onMouseLeave={() => {
+                  setHoverKey((p) => (p === seg.key ? null : p))
+                  setHoverPos(null)
+                }}
+              >
+                {seg.text}
+              </span>
+            )
+          })}
         </div>
 
         {/* Editor input */}
@@ -317,5 +284,59 @@ export default function GrammarPage() {
         </div>
       </div>
     </motion.div>
+    {createPortal(
+      <AnimatePresence>
+        {activeSeg && hoverPos && (activeSeg.err.suggestion || activeSeg.err.message) && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.96 }}
+            transition={{ duration: 0.18 }}
+            onMouseEnter={() => setHoverKey(activeSeg.key)}
+            onMouseLeave={() => { setHoverKey(null); setHoverPos(null) }}
+            className="fixed w-[280px] glass rounded-xl p-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.7)]"
+            style={{
+              left: hoverPos.left,
+              top: hoverPos.top + 8,
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-pink-400/70 font-semibold">
+                {lang === 'ru' ? 'Предложение' : 'Taklif'}
+              </span>
+              <span className="h-px flex-1 bg-pink-500/20" />
+            </div>
+            {activeSeg.err.suggestion && (
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-white/40 line-through text-[13px]">{activeSeg.text}</span>
+                <span className="text-pink-400/50">→</span>
+                <span className="text-pink-200 font-semibold text-[15px]">{activeSeg.err.suggestion}</span>
+              </div>
+            )}
+            {activeSeg.err.message && (
+              <div className="text-[11.5px] text-pink-400/80 leading-snug mb-2.5">
+                {activeSeg.err.message}
+              </div>
+            )}
+            {activeSeg.err.suggestion && (
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={(e) => { e.stopPropagation(); applySingle(activeSeg.err) }}
+                className="w-full py-1.5 rounded-lg bg-pink-500/25 hover:bg-pink-500/40 border border-pink-500/40 text-pink-100 text-[12px] font-medium flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Check size={13} />
+                {lang === 'ru' ? 'Применить' : 'Qoʻllash'}
+              </motion.button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body,
+    )}
+    </>
   )
 }

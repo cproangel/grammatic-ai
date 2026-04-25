@@ -137,8 +137,7 @@ export default function TranslatorPage() {
             placeholder={fromRu ? 'Введите текст для перевода…' : 'Tarjima uchun matnni kiriting…'}
             className="flex-1 bg-transparent px-5 py-4 text-white/90 text-[15px] leading-relaxed resize-none outline-none placeholder-white/25"
           />
-          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-pink-400/50">
-            <span className="flex items-center gap-1.5"><Volume2 size={13} />Prononsiyatsiya mavjud</span>
+          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-end text-[11px] text-pink-400/50">
             <span>⌘ / Ctrl + Enter — tarjima</span>
           </div>
         </motion.div>
@@ -190,8 +189,7 @@ export default function TranslatorPage() {
               </motion.p>
             </AnimatePresence>
           </div>
-          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-pink-400/50">
-            <span className="flex items-center gap-1.5"><Sparkles size={13} />Gemini 2.5 Flash</span>
+          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-end text-[11px] text-pink-400/50">
             <span>{latencyMs != null ? `~${(latencyMs / 1000).toFixed(1)}s` : '—'}</span>
           </div>
         </motion.div>

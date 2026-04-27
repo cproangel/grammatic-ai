@@ -1,9 +1,30 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Copy, Trash2, Check, Sparkles } from 'lucide-react'
+import { Copy, Trash2, Check, Sparkles, X } from 'lucide-react'
 import axios from 'axios'
 import { api } from '../config/api'
+
+const POPUP_W = 300
+const POPUP_H_APPROX = 200
+const SCREEN_MARGIN = 12
+
+// Clamp a popup anchored at (centerX, anchorBottom) so it stays inside
+// the viewport. Returns left/top in CSS-fixed coordinates plus a flag
+// telling the caller to flip the popup above the anchor when there's
+// not enough room below.
+function clampPopupPos(centerX, anchorTop, anchorBottom) {
+  const w = window.innerWidth
+  const h = window.innerHeight
+  let left = centerX
+  if (left - POPUP_W / 2 < SCREEN_MARGIN) left = POPUP_W / 2 + SCREEN_MARGIN
+  if (left + POPUP_W / 2 > w - SCREEN_MARGIN) left = w - POPUP_W / 2 - SCREEN_MARGIN
+
+  const spaceBelow = h - anchorBottom
+  const flipUp = spaceBelow < POPUP_H_APPROX + SCREEN_MARGIN && anchorTop > POPUP_H_APPROX
+  const top = flipUp ? anchorTop - POPUP_H_APPROX - 8 : anchorBottom + 8
+  return { left, top, flipUp }
+}
 
 const LangBadge = ({ children, dim = false }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
@@ -72,9 +93,28 @@ export default function GrammarPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const [hoverKey, setHoverKey] = useState(null)
   const [hoverPos, setHoverPos] = useState(null)
+  // Pinned popup state — set by clicking an error span; survives mouse
+  // moving away. Cleared by clicking outside or by applying the fix.
+  const [pinnedKey, setPinnedKey] = useState(null)
+  const [pinnedPos, setPinnedPos] = useState(null)
   const abortRef = useRef(null)
   const textareaRef = useRef(null)
   const underlayRef = useRef(null)
+
+  // Outside-click closes a pinned popup. Use mousedown so a click on
+  // the popup's own button still goes through (the button is rendered
+  // inside the popup, which we exclude).
+  useEffect(() => {
+    if (!pinnedKey) return
+    const onDown = (e) => {
+      if (e.target.closest?.('[data-error-popup]')) return
+      if (e.target.closest?.('.wavy-error')) return
+      setPinnedKey(null)
+      setPinnedPos(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [pinnedKey])
 
   const runCheck = async () => {
     if (!text.trim()) return
@@ -101,28 +141,37 @@ export default function GrammarPage() {
     }
   }
 
+  const closePopups = () => {
+    setHoverKey(null)
+    setHoverPos(null)
+    setPinnedKey(null)
+    setPinnedPos(null)
+  }
+
   const applySingle = (err) => {
     if (!err?.suggestion || !err?.word) return
     const newText = text.split(err.word).join(err.suggestion)
     setText(newText)
-    setHoverKey(null)
-    setHoverPos(null)
+    closePopups()
   }
 
   const applyAll = () => {
     if (correctedText && correctedText !== text) {
       setText(correctedText)
       setErrors([])
-      setHoverKey(null)
-      setHoverPos(null)
+      closePopups()
     }
   }
 
   const segments = useMemo(() => buildSegments(text, errors), [text, errors])
   const errorCount = errors.length
+  // Pin wins over hover so the popup stays put while the user moves
+  // toward the Qoʻllash button.
+  const activeKey = pinnedKey || hoverKey
+  const activePos = pinnedKey ? pinnedPos : hoverPos
   const activeSeg = useMemo(
-    () => (hoverKey ? segments.find((s) => s.type === 'err' && s.key === hoverKey) : null),
-    [hoverKey, segments],
+    () => (activeKey ? segments.find((s) => s.type === 'err' && s.key === activeKey) : null),
+    [activeKey, segments],
   )
 
   return (
@@ -254,12 +303,24 @@ export default function GrammarPage() {
                       className={`wavy-error${isWhitespace ? ' is-whitespace' : ''}`}
                       style={{ color: '#fce7f3', pointerEvents: 'auto' }}
                       onMouseEnter={(e) => {
+                        if (pinnedKey) return
                         const rect = e.currentTarget.getBoundingClientRect()
+                        const pos = clampPopupPos(rect.left + rect.width / 2, rect.top, rect.bottom)
                         setHoverKey(seg.key)
-                        setHoverPos({ left: rect.left + rect.width / 2, top: rect.bottom })
+                        setHoverPos(pos)
                       }}
                       onMouseLeave={() => {
+                        if (pinnedKey) return
                         setHoverKey((p) => (p === seg.key ? null : p))
+                        setHoverPos(null)
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const pos = clampPopupPos(rect.left + rect.width / 2, rect.top, rect.bottom)
+                        setPinnedKey(seg.key)
+                        setPinnedPos(pos)
+                        setHoverKey(null)
                         setHoverPos(null)
                       }}
                     >
@@ -324,18 +385,19 @@ export default function GrammarPage() {
     </motion.div>
     {createPortal(
       <AnimatePresence>
-        {activeSeg && hoverPos && (activeSeg.err.suggestion || activeSeg.err.message) && (
+        {activeSeg && activePos && (activeSeg.err.suggestion || activeSeg.err.message) && (
           <motion.div
+            data-error-popup
             initial={{ opacity: 0, y: -4, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            onMouseEnter={() => setHoverKey(activeSeg.key)}
-            onMouseLeave={() => { setHoverKey(null); setHoverPos(null) }}
+            onMouseEnter={() => { if (!pinnedKey) setHoverKey(activeSeg.key) }}
+            onMouseLeave={() => { if (!pinnedKey) { setHoverKey(null); setHoverPos(null) } }}
             className="fixed w-[300px] rounded-xl p-3.5 border border-pink-500/40 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.85)]"
             style={{
-              left: hoverPos.left,
-              top: hoverPos.top + 8,
+              left: activePos.left,
+              top: activePos.top,
               transform: 'translateX(-50%)',
               zIndex: 9999,
               pointerEvents: 'auto',
@@ -349,6 +411,15 @@ export default function GrammarPage() {
                 {lang === 'ru' ? 'Исправление' : 'Tuzatish'}
               </span>
               <span className="h-px flex-1 bg-pink-500/30" />
+              {pinnedKey && (
+                <button
+                  onClick={() => { setPinnedKey(null); setPinnedPos(null) }}
+                  className="text-pink-400/60 hover:text-pink-300 transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
             {activeSeg.err.suggestion && (
               <div className="flex items-baseline gap-2 mb-2">

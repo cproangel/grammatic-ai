@@ -354,27 +354,49 @@ async def check_grammar(request: GrammarCheckRequest):
     # Normalize apostrophes in the input so offsets match what the user sees
     input_text = normalize_uzbek_apostrophes(request.text) if request.language == "uz" else request.text
 
-    prompt = f"""Analyze the following {lang_name} text for REAL errors only.
+    prompt = f"""Analyze the following {lang_name} text and find every real issue.
 
 Text to check:
 \"\"\"{input_text}\"\"\"
 
-STRICT RULES:
-- ONLY report ACTUAL spelling, grammar, or punctuation errors
-- Do NOT suggest style changes
-- Do NOT invent errors that don't exist  
-- If text is correct, return empty errors array
-- The "word" field MUST be the EXACT substring from the original text (copy-paste it exactly)
-- Do NOT paraphrase or modify the error word — it must match the original text character by character
+WHAT TO REPORT — be thorough, do not skip categories:
+1. Spelling: misspelled words, wrong letters, missing/extra letters.
+2. Grammar: wrong endings, wrong cases, wrong agreement, wrong tense.
+3. Punctuation: missing or extra commas, missing periods at sentence ends,
+   wrong quotation marks, wrong apostrophes (ʻ vs ʼ in Uzbek).
+4. Whitespace: report DOUBLE/TRIPLE spaces between words as a single
+   error covering the run of spaces (suggestion = single space). Also
+   report a missing space after a comma/period when the next character
+   is a letter.
+5. Hyphen vs dash: a single hyphen "-" used between independent clauses
+   or as a thought-break should be an em-dash "—" (with spaces). An
+   em-dash inside a compound word like "atrof-muhit" should be a
+   hyphen. Report whichever case applies.
+6. Capitalization: lowercase letter at the start of a sentence (after
+   ". ", "! ", "? ", or after a newline) → flag with suggestion
+   capitalized. Proper nouns written lowercase → flag.
+7. Style / wording: clumsy or unnatural phrasing, words that do not fit
+   the context, awkward sentence structure that distorts meaning. For
+   these, the message should explain why and the suggestion should
+   propose a more natural wording for THAT WORD OR PHRASE. Only flag
+   style when the meaning is genuinely unclear or awkward — do not
+   rewrite text that is already fine.
+
+STRICT FORMATTING RULES:
+- Do NOT invent errors that don't exist. Real ones only.
+- The "word" field MUST be the EXACT substring from the original text
+  (copy it character-by-character, including spaces and apostrophes).
+- For whitespace errors, "word" is the literal run of spaces.
+- Do NOT paraphrase the error word.
 
 All messages MUST be in {lang_name} ({response_lang}).
 
 Respond in this exact JSON format:
 {{
     "errors": [
-        {{"word": "exact_wrong_word_from_text", "message": "explanation of error", "suggestion": "correct_version"}}
+        {{"word": "exact_wrong_substring", "message": "explanation in {lang_name}", "suggestion": "correct_version"}}
     ],
-    "corrected_text": "full corrected text"
+    "corrected_text": "full corrected text with every error fixed"
 }}
 
 If NO errors found: {{"errors": [], "corrected_text": "original text unchanged"}}"""

@@ -73,6 +73,8 @@ export default function GrammarPage() {
   const [hoverKey, setHoverKey] = useState(null)
   const [hoverPos, setHoverPos] = useState(null)
   const abortRef = useRef(null)
+  const textareaRef = useRef(null)
+  const underlayRef = useRef(null)
 
   const runCheck = async () => {
     if (!text.trim()) return
@@ -166,13 +168,9 @@ export default function GrammarPage() {
         </div>
       </div>
 
-      {/* Main editor card */}
-      <motion.div
-        whileHover={{ y: -2 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-        className="glass rounded-2xl md:flex-1 md:min-h-0 flex flex-col overflow-hidden"
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+      {/* Unified editor — single textarea with live error highlights below */}
+      <div className="glass rounded-2xl md:flex-1 md:min-h-0 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-white/5">
           <div className="flex items-center gap-3">
             <LangBadge>{lang === 'ru' ? 'Русский' : 'Oʻzbekcha'}</LangBadge>
             <AnimatePresence mode="wait">
@@ -211,43 +209,66 @@ export default function GrammarPage() {
           </div>
         </div>
 
-        {/* Annotated view */}
-        <div className="flex-1 min-h-[140px] md:min-h-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-white/90 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap relative">
-          {text.trim() && segments.map((seg, i) => {
-            if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
-            return (
-              <span
-                key={seg.key}
-                className="relative wavy-error"
-                style={{ color: '#fce7f3' }}
-                onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  setHoverKey(seg.key)
-                  setHoverPos({ left: rect.left + rect.width / 2, top: rect.bottom })
-                }}
-                onMouseLeave={() => {
-                  setHoverKey((p) => (p === seg.key ? null : p))
-                  setHoverPos(null)
-                }}
-              >
-                {seg.text}
-              </span>
-            )
-          })}
-        </div>
-
-        {/* Editor input */}
-        <div className="border-t border-white/5 p-4">
+        {/* Stacked layers: underlay renders the visible text + highlights,
+            textarea on top is what receives keystrokes (text rendered
+            transparent so caret is visible but glyphs come from underlay).
+            Spans inside underlay re-enable pointer events so hovering an
+            error opens the suggestion popup, while plain text falls
+            through to the textarea below. */}
+        <div className="relative flex-1 min-h-[260px] md:min-h-0">
+          <div
+            ref={underlayRef}
+            aria-hidden="true"
+            className="absolute inset-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] text-white/90 whitespace-pre-wrap break-words pointer-events-none"
+          >
+            {text
+              ? segments.map((seg, i) => {
+                  if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
+                  return (
+                    <span
+                      key={seg.key}
+                      className="wavy-error"
+                      style={{ color: '#fce7f3', pointerEvents: 'auto' }}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setHoverKey(seg.key)
+                        setHoverPos({ left: rect.left + rect.width / 2, top: rect.bottom })
+                      }}
+                      onMouseLeave={() => {
+                        setHoverKey((p) => (p === seg.key ? null : p))
+                        setHoverPos(null)
+                      }}
+                    >
+                      {seg.text}
+                    </span>
+                  )
+                })
+              : (
+                <span className="text-white/25">
+                  {lang === 'ru' ? 'Введите текст для проверки…' : 'Tekshirish uchun matn kiriting…'}
+                </span>
+              )}
+            {/* trailing newline ensures last line scrolls into view */}
+            {'\n'}
+          </div>
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={3}
-            placeholder={lang === 'ru' ? 'Редактируйте текст здесь…' : 'Matnni shu yerda tahrirlang…'}
-            className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-3 text-white/80 text-[13.5px] resize-none outline-none focus:border-pink-500/40 focus:bg-black/40 transition-colors placeholder-white/25"
+            onScroll={(e) => {
+              if (underlayRef.current) underlayRef.current.scrollTop = e.currentTarget.scrollTop
+            }}
+            spellCheck={false}
+            className="grammar-overlay-textarea absolute inset-0 w-full h-full bg-transparent px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap break-words resize-none outline-none font-sans"
+            style={{ color: 'transparent', caretColor: '#f9a8d4' }}
           />
-          {errorMsg && <div className="mt-2 text-rose-300/80 text-[12px]">{errorMsg}</div>}
         </div>
-      </motion.div>
+        {errorMsg && (
+          <div className="border-t border-white/5 px-4 md:px-5 py-2 text-rose-300/80 text-[12px]">
+            {errorMsg}
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
@@ -298,30 +319,33 @@ export default function GrammarPage() {
             transition={{ duration: 0.18 }}
             onMouseEnter={() => setHoverKey(activeSeg.key)}
             onMouseLeave={() => { setHoverKey(null); setHoverPos(null) }}
-            className="fixed w-[280px] glass rounded-xl p-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.7)]"
+            className="fixed w-[300px] rounded-xl p-3.5 border border-pink-500/40 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.85)]"
             style={{
               left: hoverPos.left,
               top: hoverPos.top + 8,
               transform: 'translateX(-50%)',
               zIndex: 9999,
               pointerEvents: 'auto',
+              background: 'rgba(20,8,28,0.97)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
           >
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[11px] uppercase tracking-wider text-pink-400/70 font-semibold">
-                {lang === 'ru' ? 'Предложение' : 'Taklif'}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[11px] uppercase tracking-wider text-pink-300 font-bold">
+                {lang === 'ru' ? 'Исправление' : 'Tuzatish'}
               </span>
-              <span className="h-px flex-1 bg-pink-500/20" />
+              <span className="h-px flex-1 bg-pink-500/30" />
             </div>
             {activeSeg.err.suggestion && (
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-white/40 line-through text-[13px]">{activeSeg.text}</span>
-                <span className="text-pink-400/50">→</span>
-                <span className="text-pink-200 font-semibold text-[15px]">{activeSeg.err.suggestion}</span>
+                <span className="text-rose-300/60 line-through text-[13px]">{activeSeg.text}</span>
+                <span className="text-pink-300">→</span>
+                <span className="text-pink-100 font-bold text-[15px]">{activeSeg.err.suggestion}</span>
               </div>
             )}
             {activeSeg.err.message && (
-              <div className="text-[11.5px] text-pink-400/80 leading-snug mb-2.5">
+              <div className="text-[12px] text-pink-100/85 leading-snug mb-3">
                 {activeSeg.err.message}
               </div>
             )}
@@ -330,9 +354,9 @@ export default function GrammarPage() {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={(e) => { e.stopPropagation(); applySingle(activeSeg.err) }}
-                className="w-full py-1.5 rounded-lg bg-pink-500/25 hover:bg-pink-500/40 border border-pink-500/40 text-pink-100 text-[12px] font-medium flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2 rounded-lg bg-pink-500/35 hover:bg-pink-500/55 border border-pink-500/50 text-white text-[12.5px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
               >
-                <Check size={13} />
+                <Check size={14} />
                 {lang === 'ru' ? 'Применить' : 'Qoʻllash'}
               </motion.button>
             )}

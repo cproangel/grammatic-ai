@@ -130,6 +130,18 @@ body {
   }
 }
 
+/* Overlay textarea for grammar editor — text is transparent so the
+   underlay <div> renders the actual glyphs (with error highlights),
+   but selection still needs to be visible. */
+.grammar-overlay-textarea::selection {
+  background: rgba(236, 72, 153, 0.35);
+  color: transparent;
+}
+.grammar-overlay-textarea::-moz-selection {
+  background: rgba(236, 72, 153, 0.35);
+  color: transparent;
+}
+
 /* Branch sway */
 @keyframes sway-a {
   0%, 100% { transform: rotate(0deg); }

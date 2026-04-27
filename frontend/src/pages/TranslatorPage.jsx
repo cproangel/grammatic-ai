@@ -93,25 +93,31 @@ export default function TranslatorPage() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
-      className="flex flex-col gap-5 h-full"
+      className="flex flex-col gap-3 md:gap-5 md:h-full"
     >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-pink-200 tracking-tight">Tarjimon</h1>
-          <p className="text-pink-400/60 text-[13px] mt-0.5">Русский ⇄ Oʻzbekcha — AI-tarjima</p>
+          <h1 className="text-xl md:text-2xl font-bold text-pink-200 tracking-tight">Tarjimon</h1>
+          <p className="text-pink-400/60 text-[12px] md:text-[13px] mt-0.5">Русский ⇄ Oʻzbekcha — AI-tarjima</p>
         </div>
       </div>
 
-      {/* Direction bar */}
-      <div className="glass rounded-2xl px-5 py-3 flex items-center justify-center gap-5">
-        <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{fromLabel}</LangBadge>
+      {/* Direction bar — swap button is anchored at the center via grid;
+          side columns share equal width so the button never shifts when
+          the labels swap, only the badges around it change. */}
+      <div className="glass rounded-2xl px-3 md:px-5 py-2.5 md:py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-5">
+        <div className="justify-self-end">
+          <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{fromLabel}</LangBadge>
+        </div>
         <SwapButton onClick={swap} />
-        <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{toLabel}</LangBadge>
+        <div className="justify-self-start">
+          <LangBadge><span className="w-1.5 h-1.5 rounded-full bg-pink-300" />{toLabel}</LangBadge>
+        </div>
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-2 gap-5 flex-1 min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5 md:flex-1 md:min-h-0">
         {/* Input */}
         <motion.div
           whileHover={{ y: -2, boxShadow: '0 20px 40px -20px rgba(236,72,153,0.25)' }}
@@ -135,7 +141,7 @@ export default function TranslatorPage() {
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') doTranslate()
             }}
             placeholder={fromRu ? 'Введите текст для перевода…' : 'Tarjima uchun matnni kiriting…'}
-            className="flex-1 bg-transparent px-5 py-4 text-white/90 text-[15px] leading-relaxed resize-none outline-none placeholder-white/25"
+            className="flex-1 min-h-[180px] md:min-h-0 bg-transparent px-4 md:px-5 py-3 md:py-4 text-white/90 text-[15px] leading-relaxed resize-none outline-none placeholder-white/25"
           />
           <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-end text-[11px] text-pink-400/50">
             <span>⌘ / Ctrl + Enter — tarjima</span>
@@ -167,7 +173,7 @@ export default function TranslatorPage() {
               <CardIconBtn title="Tozalash" onClick={() => setOutput('')}><Trash2 size={15} /></CardIconBtn>
             </div>
           </div>
-          <div className="flex-1 px-5 py-4 overflow-auto">
+          <div className="flex-1 min-h-[180px] md:min-h-0 px-4 md:px-5 py-3 md:py-4 overflow-auto">
             <AnimatePresence mode="wait">
               <motion.p
                 key={output + (loading ? '_l' : '') + (errorMsg || '')}

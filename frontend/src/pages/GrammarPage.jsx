@@ -130,13 +130,13 @@ export default function GrammarPage() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.3, ease: [0.2, 0.7, 0.2, 1] }}
-      className="flex flex-col gap-5 h-full"
+      className="flex flex-col gap-3 md:gap-5 md:h-full"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-pink-200 tracking-tight">Grammatika</h1>
-          <p className="text-pink-400/60 text-[13px] mt-0.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-pink-200 tracking-tight">Grammatika</h1>
+          <p className="text-pink-400/60 text-[12px] md:text-[13px] mt-0.5">
             AI matningizdagi xatolarni topadi va tuzatadi
           </p>
         </div>
@@ -170,7 +170,7 @@ export default function GrammarPage() {
       <motion.div
         whileHover={{ y: -2 }}
         transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-        className="glass rounded-2xl flex-1 min-h-0 flex flex-col overflow-hidden"
+        className="glass rounded-2xl md:flex-1 md:min-h-0 flex flex-col overflow-hidden"
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
           <div className="flex items-center gap-3">
@@ -208,7 +208,7 @@ export default function GrammarPage() {
         </div>
 
         {/* Annotated view */}
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 text-white/90 text-[16px] leading-[1.85] whitespace-pre-wrap relative">
+        <div className="flex-1 min-h-[140px] md:min-h-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-white/90 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap relative">
           {text.trim() && segments.map((seg, i) => {
             if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
             return (
@@ -246,19 +246,19 @@ export default function GrammarPage() {
       </motion.div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="text-[12px] text-pink-400/60">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+        <div className="text-[12px] text-pink-400/60 hidden md:block">
           {lang === 'ru'
             ? 'Наведите на подчёркнутое слово — увидите предложение по исправлению.'
             : 'Tagi chizilgan soʻz ustiga olib boring — taklifni koʻrasiz.'}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 md:gap-3 w-full md:w-auto">
           <motion.button
             onClick={runCheck}
             disabled={checking || !text.trim()}
             whileHover={!checking && text.trim() ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
             whileTap={!checking && text.trim() ? { scale: 0.97 } : {}}
-            className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
+            className={`flex-1 md:flex-initial justify-center px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
               checking || !text.trim()
                 ? 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'
                 : 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
@@ -272,7 +272,7 @@ export default function GrammarPage() {
             disabled={!correctedText || correctedText === text}
             whileHover={correctedText && correctedText !== text ? { scale: 1.03, boxShadow: '0 10px 30px -8px rgba(236,72,153,0.55)' } : {}}
             whileTap={correctedText && correctedText !== text ? { scale: 0.97 } : {}}
-            className={`px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
+            className={`flex-1 md:flex-initial justify-center px-5 py-2.5 rounded-xl font-semibold text-[13.5px] flex items-center gap-2 transition-all ${
               correctedText && correctedText !== text
                 ? 'text-white bg-gradient-to-r from-pink-500 to-pink-400 shadow-[0_10px_25px_-10px_rgba(236,72,153,0.6)]'
                 : 'text-white/30 bg-white/5 border border-white/5 cursor-not-allowed'

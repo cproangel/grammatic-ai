@@ -120,6 +120,16 @@ body {
   -webkit-mask-composite: source-in;
 }
 
+/* Mobile: hide bg video and decorative layers — cuts ~6MB load
+   and frees CPU/battery on phones; the gradients in <main> are
+   enough to keep the look on small screens. */
+@media (max-width: 767px) {
+  .sakura-video,
+  .sakura-bg {
+    display: none;
+  }
+}
+
 /* Branch sway */
 @keyframes sway-a {
   0%, 100% { transform: rotate(0deg); }

@@ -86,7 +86,7 @@ export default function GrammarPage() {
       const res = await axios.post(
         api.grammarCheck,
         { text, language: lang },
-        { signal: controller.signal, timeout: 30000 },
+        { signal: controller.signal, timeout: 90000 },
       )
       setErrors(res.data.errors || [])
       setCorrectedText(res.data.corrected_text || text)
@@ -177,27 +177,31 @@ export default function GrammarPage() {
             <LangBadge>{lang === 'ru' ? 'Русский' : 'Oʻzbekcha'}</LangBadge>
             <AnimatePresence mode="wait">
               <motion.span
-                key={`${errorCount}-${checking}`}
+                key={`${errorCount}-${checking}-${errorMsg ? 'err' : 'ok'}`}
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
                 className={`text-[12px] px-2 py-0.5 rounded-md border ${
                   checking
                     ? 'bg-pink-500/10 text-pink-300/80 border-pink-500/20'
-                    : errorCount > 0
-                      ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
-                      : text.trim()
-                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
-                        : 'bg-white/5 text-white/30 border-white/10'
+                    : errorMsg
+                      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                      : errorCount > 0
+                        ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                        : text.trim()
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
+                          : 'bg-white/5 text-white/30 border-white/10'
                 }`}
               >
                 {checking
                   ? (lang === 'ru' ? 'Проверка…' : 'Tekshirilmoqda…')
-                  : errorCount > 0
-                    ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
-                    : text.trim()
-                      ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
-                      : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
+                  : errorMsg
+                    ? (lang === 'ru' ? 'Ошибка' : 'Xatolik')
+                    : errorCount > 0
+                      ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
+                      : text.trim()
+                        ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
+                        : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
               </motion.span>
             </AnimatePresence>
           </div>

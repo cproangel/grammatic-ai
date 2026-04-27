@@ -106,9 +106,18 @@ body {
   z-index: 0;
   mix-blend-mode: screen;
   opacity: 0.9;
-  filter: saturate(1.15) brightness(1.1);
-  mask-image: linear-gradient(to left, transparent 0%, black 15%, black 100%);
-  -webkit-mask-image: linear-gradient(to left, transparent 0%, black 15%, black 100%);
+  /* contrast bump crushes near-black noise to true black so screen
+     blend renders it as fully transparent against the page bg */
+  filter: saturate(1.15) brightness(1.05) contrast(1.18);
+  /* fade right edge AND top edge to dissolve the rectangle outline */
+  mask-image:
+    linear-gradient(to left, transparent 0%, black 15%, black 100%),
+    linear-gradient(to top, black 0%, black 70%, transparent 100%);
+  -webkit-mask-image:
+    linear-gradient(to left, transparent 0%, black 15%, black 100%),
+    linear-gradient(to top, black 0%, black 70%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
 }
 
 /* Branch sway */

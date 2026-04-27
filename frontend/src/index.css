@@ -72,14 +72,37 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-/* Wavy error underline */
+/* Highlighted error region: pink/rose marker behind the word + thicker
+   wavy underline. Two backgrounds layered: SVG wave at the bottom,
+   solid rose tint covering the whole span. Visible even when the
+   "word" is just whitespace (double space, line break) because the
+   marker fills the inline rectangle the span occupies. */
 .wavy-error {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3'><path d='M0 2 Q 1.5 0 3 2 T 6 2' stroke='%23f472b6' stroke-width='0.6' fill='none'/></svg>");
-  background-repeat: repeat-x;
-  background-position: bottom left;
-  background-size: 6px 3px;
-  padding-bottom: 3px;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'><path d='M0 3 Q 2 0 4 3 T 8 3' stroke='%23ec4899' stroke-width='1.1' fill='none'/></svg>"),
+    linear-gradient(rgba(244, 63, 94, 0.32), rgba(244, 63, 94, 0.32));
+  background-repeat: repeat-x, no-repeat;
+  background-position: bottom left, 0 0;
+  background-size: 8px 4px, 100% 100%;
+  border-radius: 3px;
+  padding: 1px 2px 4px;
+  margin: -1px 0;
   cursor: pointer;
+  transition: background-color 0.15s;
+}
+.wavy-error:hover {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'><path d='M0 3 Q 2 0 4 3 T 8 3' stroke='%23ec4899' stroke-width='1.2' fill='none'/></svg>"),
+    linear-gradient(rgba(244, 63, 94, 0.5), rgba(244, 63, 94, 0.5));
+}
+/* Make a literal space/newline inside .wavy-error visually take up
+   space so the marker is visible — render a non-breaking space-sized
+   block via min-width on the span. */
+.wavy-error.is-whitespace {
+  display: inline-block;
+  min-width: 0.6em;
+  min-height: 1em;
+  vertical-align: text-bottom;
 }
 
 /* Sakura background layer */
@@ -140,6 +163,49 @@ body {
 .grammar-overlay-textarea::-moz-selection {
   background: rgba(236, 72, 153, 0.35);
   color: transparent;
+}
+
+/* Loading dots: three pink dots bouncing in a wave to indicate
+   the AI is checking/translating. Reused in any "thinking" badge. */
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40%           { transform: translateY(-4px); opacity: 1; }
+}
+.dots-bounce {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.dots-bounce > span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f472b6;
+  animation: dot-bounce 1s ease-in-out infinite;
+}
+.dots-bounce > span:nth-child(2) { animation-delay: 0.15s; }
+.dots-bounce > span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Shimmer line that runs left-to-right under the "checking…" badge,
+   gives a sense of activity while waiting for the API. */
+@keyframes shimmer-sweep {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bar {
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(244, 114, 182, 0.0) 20%,
+    rgba(244, 114, 182, 0.85) 50%,
+    rgba(244, 114, 182, 0.0) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.6s linear infinite;
 }
 
 /* Branch sway */

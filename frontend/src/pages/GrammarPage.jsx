@@ -191,15 +191,20 @@ export default function GrammarPage() {
                           : 'bg-white/5 text-white/30 border-white/10'
                 }`}
               >
-                {checking
-                  ? (lang === 'ru' ? 'Проверка…' : 'Tekshirilmoqda…')
-                  : errorMsg
-                    ? (lang === 'ru' ? 'Ошибка' : 'Xatolik')
-                    : errorCount > 0
-                      ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
-                      : text.trim()
-                        ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
-                        : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
+                {checking ? (
+                  <span className="inline-flex items-center gap-2">
+                    {lang === 'ru' ? 'Проверка' : 'Tekshirilmoqda'}
+                    <span className="dots-bounce" aria-hidden="true">
+                      <span /><span /><span />
+                    </span>
+                  </span>
+                ) : errorMsg
+                  ? (lang === 'ru' ? 'Ошибка' : 'Xatolik')
+                  : errorCount > 0
+                    ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
+                    : text.trim()
+                      ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
+                      : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
               </motion.span>
             </AnimatePresence>
           </div>
@@ -209,6 +214,8 @@ export default function GrammarPage() {
           </div>
         </div>
 
+        {checking && <div className="shimmer-bar" />}
+
         {/* Stacked layers: underlay renders the visible text + highlights,
             textarea on top is what receives keystrokes (text rendered
             transparent so caret is visible but glyphs come from underlay).
@@ -216,18 +223,35 @@ export default function GrammarPage() {
             error opens the suggestion popup, while plain text falls
             through to the textarea below. */}
         <div className="relative flex-1 min-h-[260px] md:min-h-0">
+          {/* Textarea underneath — receives keystrokes everywhere except
+              over the error spans, which sit on the overlay and trap
+              hover for the popup. */}
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onScroll={(e) => {
+              if (underlayRef.current) underlayRef.current.scrollTop = e.currentTarget.scrollTop
+            }}
+            spellCheck={false}
+            className="grammar-overlay-textarea absolute inset-0 w-full h-full bg-transparent px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap break-words resize-none outline-none font-sans z-[1]"
+            style={{ color: 'transparent', caretColor: '#f9a8d4' }}
+          />
+          {/* Overlay on top — visible glyphs + error highlights.
+              Container blocks no events; only error spans capture hover. */}
           <div
             ref={underlayRef}
             aria-hidden="true"
-            className="absolute inset-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] text-white/90 whitespace-pre-wrap break-words pointer-events-none"
+            className="absolute inset-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] text-white/90 whitespace-pre-wrap break-words pointer-events-none z-[2]"
           >
             {text
               ? segments.map((seg, i) => {
                   if (seg.type === 'text') return <span key={`t-${i}`}>{seg.text}</span>
+                  const isWhitespace = !seg.text.trim()
                   return (
                     <span
                       key={seg.key}
-                      className="wavy-error"
+                      className={`wavy-error${isWhitespace ? ' is-whitespace' : ''}`}
                       style={{ color: '#fce7f3', pointerEvents: 'auto' }}
                       onMouseEnter={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect()
@@ -251,17 +275,6 @@ export default function GrammarPage() {
             {/* trailing newline ensures last line scrolls into view */}
             {'\n'}
           </div>
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onScroll={(e) => {
-              if (underlayRef.current) underlayRef.current.scrollTop = e.currentTarget.scrollTop
-            }}
-            spellCheck={false}
-            className="grammar-overlay-textarea absolute inset-0 w-full h-full bg-transparent px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap break-words resize-none outline-none font-sans"
-            style={{ color: 'transparent', caretColor: '#f9a8d4' }}
-          />
         </div>
         {errorMsg && (
           <div className="border-t border-white/5 px-4 md:px-5 py-2 text-rose-300/80 text-[12px]">

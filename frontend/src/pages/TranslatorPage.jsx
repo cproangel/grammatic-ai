@@ -158,13 +158,11 @@ export default function TranslatorPage() {
             <div className="flex items-center gap-2">
               <LangBadge>{toLabel}</LangBadge>
               {loading && (
-                <span className="flex items-center gap-1.5 text-pink-300/70 text-[11px]">
-                  <motion.span
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="w-3 h-3 border border-pink-300/60 border-t-transparent rounded-full inline-block"
-                  />
-                  Tarjima qilinmoqda…
+                <span className="flex items-center gap-2 text-pink-300 text-[11px]">
+                  Tarjima qilinmoqda
+                  <span className="dots-bounce" aria-hidden="true">
+                    <span /><span /><span />
+                  </span>
                 </span>
               )}
             </div>
@@ -173,6 +171,7 @@ export default function TranslatorPage() {
               <CardIconBtn title="Tozalash" onClick={() => setOutput('')}><Trash2 size={15} /></CardIconBtn>
             </div>
           </div>
+          {loading && <div className="shimmer-bar" />}
           <div className="flex-1 min-h-[180px] md:min-h-0 px-4 md:px-5 py-3 md:py-4 overflow-auto">
             <AnimatePresence mode="wait">
               <motion.p

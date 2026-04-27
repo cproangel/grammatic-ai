@@ -68,7 +68,7 @@ export default function TranslatorPage() {
       const res = await axios.post(
         api.translate,
         { text, source_lang: fromLang, target_lang: toLang },
-        { signal: controller.signal, timeout: 90000 },
+        { signal: controller.signal, timeout: 600000 },
       )
       setOutput(res.data.translated_text || '')
       setLatencyMs(Math.round(performance.now() - t0))

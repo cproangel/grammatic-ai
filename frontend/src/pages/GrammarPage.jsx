@@ -86,7 +86,7 @@ export default function GrammarPage() {
       const res = await axios.post(
         api.grammarCheck,
         { text, language: lang },
-        { signal: controller.signal, timeout: 90000 },
+        { signal: controller.signal, timeout: 600000 },
       )
       setErrors(res.data.errors || [])
       setCorrectedText(res.data.corrected_text || text)

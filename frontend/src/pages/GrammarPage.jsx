@@ -91,6 +91,11 @@ export default function GrammarPage() {
   const [correctedText, setCorrectedText] = useState('')
   const [checking, setChecking] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  // Snapshot of the text at the moment the last check completed.
+  // The status badge is only meaningful when text === lastCheckedText;
+  // otherwise the user has typed/pasted new content and we shouldn't
+  // claim "no errors found" for text that hasn't actually been checked.
+  const [lastCheckedText, setLastCheckedText] = useState(null)
   const [hoverKey, setHoverKey] = useState(null)
   const [hoverPos, setHoverPos] = useState(null)
   // Pinned popup state — set by clicking an error span; survives mouse
@@ -124,6 +129,7 @@ export default function GrammarPage() {
 
     setChecking(true)
     setErrorMsg('')
+    const checkedText = text
     try {
       const res = await axios.post(
         api.grammarCheck,
@@ -132,6 +138,7 @@ export default function GrammarPage() {
       )
       setErrors(res.data.errors || [])
       setCorrectedText(res.data.corrected_text || text)
+      setLastCheckedText(checkedText)
     } catch (err) {
       if (err.name === 'CanceledError' || err.name === 'AbortError') return
       console.error('Grammar error:', err)
@@ -152,6 +159,7 @@ export default function GrammarPage() {
     if (!err?.suggestion || !err?.word) return
     const newText = text.split(err.word).join(err.suggestion)
     setText(newText)
+    setLastCheckedText(null)
     closePopups()
   }
 
@@ -159,12 +167,18 @@ export default function GrammarPage() {
     if (correctedText && correctedText !== text) {
       setText(correctedText)
       setErrors([])
+      setLastCheckedText(null)
       closePopups()
     }
   }
 
-  const segments = useMemo(() => buildSegments(text, errors), [text, errors])
-  const errorCount = errors.length
+  // Errors are only valid for the exact text they were computed against.
+  // If the user has edited since the last check, drop the highlights so
+  // we don't paint stale offsets on now-different content.
+  const isStale = lastCheckedText !== null && lastCheckedText !== text
+  const liveErrors = isStale ? [] : errors
+  const segments = useMemo(() => buildSegments(text, liveErrors), [text, liveErrors])
+  const errorCount = liveErrors.length
   // Pin wins over hover so the popup stays put while the user moves
   // toward the Qoʻllash button.
   const activeKey = pinnedKey || hoverKey
@@ -224,7 +238,7 @@ export default function GrammarPage() {
             <LangBadge>{lang === 'ru' ? 'Русский' : 'Oʻzbekcha'}</LangBadge>
             <AnimatePresence mode="wait">
               <motion.span
-                key={`${errorCount}-${checking}-${errorMsg ? 'err' : 'ok'}`}
+                key={`${errorCount}-${checking}-${errorMsg ? 'err' : 'ok'}-${isStale ? 'stale' : 'fresh'}-${lastCheckedText === null ? 'never' : 'done'}`}
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
@@ -233,11 +247,13 @@ export default function GrammarPage() {
                     ? 'bg-pink-500/10 text-pink-300/80 border-pink-500/20'
                     : errorMsg
                       ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                      : errorCount > 0
-                        ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
-                        : text.trim()
-                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
-                          : 'bg-white/5 text-white/30 border-white/10'
+                      : !text.trim()
+                        ? 'bg-white/5 text-white/30 border-white/10'
+                        : lastCheckedText === null || isStale
+                          ? 'bg-white/5 text-pink-300/70 border-pink-500/20'
+                          : errorCount > 0
+                            ? 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                            : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
                 }`}
               >
                 {checking ? (
@@ -249,11 +265,13 @@ export default function GrammarPage() {
                   </span>
                 ) : errorMsg
                   ? (lang === 'ru' ? 'Ошибка' : 'Xatolik')
-                  : errorCount > 0
-                    ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
-                    : text.trim()
-                      ? (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')
-                      : (lang === 'ru' ? 'Пусто' : 'Boʻsh')}
+                  : !text.trim()
+                    ? (lang === 'ru' ? 'Пусто' : 'Boʻsh')
+                    : lastCheckedText === null || isStale
+                      ? (lang === 'ru' ? 'Не проверено' : 'Tekshirilmagan')
+                      : errorCount > 0
+                        ? (lang === 'ru' ? `${errorCount} ошибок` : `${errorCount} ta xato`)
+                        : (lang === 'ru' ? 'Без ошибок' : 'Xatolar yoʻq')}
               </motion.span>
             </AnimatePresence>
           </div>

@@ -283,7 +283,7 @@ export default function GrammarPage() {
               if (underlayRef.current) underlayRef.current.scrollTop = e.currentTarget.scrollTop
             }}
             spellCheck={false}
-            className="grammar-overlay-textarea absolute inset-0 w-full h-full bg-transparent px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap break-words resize-none outline-none font-sans z-[1]"
+            className="grammar-overlay-textarea absolute inset-0 w-full h-full bg-transparent px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] whitespace-pre-wrap resize-none outline-none z-[1]"
             style={{ color: 'transparent', caretColor: '#f9a8d4' }}
           />
           {/* Overlay on top — visible glyphs + error highlights.
@@ -291,7 +291,7 @@ export default function GrammarPage() {
           <div
             ref={underlayRef}
             aria-hidden="true"
-            className="absolute inset-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] text-white/90 whitespace-pre-wrap break-words pointer-events-none z-[2]"
+            className="grammar-overlay-underlay absolute inset-0 overflow-auto px-4 md:px-6 py-3 md:py-5 text-[15px] md:text-[16px] leading-[1.7] md:leading-[1.85] text-white/90 whitespace-pre-wrap pointer-events-none z-[2]"
           >
             {text
               ? segments.map((seg, i) => {

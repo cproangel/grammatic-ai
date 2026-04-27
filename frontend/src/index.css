@@ -72,37 +72,23 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-/* Highlighted error region: pink/rose marker behind the word + thicker
-   wavy underline. Two backgrounds layered: SVG wave at the bottom,
-   solid rose tint covering the whole span. Visible even when the
-   "word" is just whitespace (double space, line break) because the
-   marker fills the inline rectangle the span occupies. */
+/* Highlighted error region. Uses ONLY background-color and
+   text-decoration so it doesn't change the inline box's metrics —
+   that way the caret in the underlying textarea stays exactly
+   where the visible text says it should be. */
 .wavy-error {
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'><path d='M0 3 Q 2 0 4 3 T 8 3' stroke='%23ec4899' stroke-width='1.1' fill='none'/></svg>"),
-    linear-gradient(rgba(244, 63, 94, 0.32), rgba(244, 63, 94, 0.32));
-  background-repeat: repeat-x, no-repeat;
-  background-position: bottom left, 0 0;
-  background-size: 8px 4px, 100% 100%;
-  border-radius: 3px;
-  padding: 1px 2px 4px;
-  margin: -1px 0;
+  background-color: rgba(244, 63, 94, 0.3);
+  text-decoration: underline wavy #ec4899;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
   cursor: pointer;
   transition: background-color 0.15s;
 }
 .wavy-error:hover {
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'><path d='M0 3 Q 2 0 4 3 T 8 3' stroke='%23ec4899' stroke-width='1.2' fill='none'/></svg>"),
-    linear-gradient(rgba(244, 63, 94, 0.5), rgba(244, 63, 94, 0.5));
+  background-color: rgba(244, 63, 94, 0.48);
 }
-/* Make a literal space/newline inside .wavy-error visually take up
-   space so the marker is visible — render a non-breaking space-sized
-   block via min-width on the span. */
 .wavy-error.is-whitespace {
-  display: inline-block;
-  min-width: 0.6em;
-  min-height: 1em;
-  vertical-align: text-bottom;
+  background-color: rgba(244, 63, 94, 0.55);
 }
 
 /* Sakura background layer */
@@ -163,6 +149,24 @@ body {
 .grammar-overlay-textarea::-moz-selection {
   background: rgba(236, 72, 153, 0.35);
   color: transparent;
+}
+
+/* Critical: textarea and underlay must produce IDENTICAL line wrapping
+   so the caret position lines up with the visible text. Reserve the
+   same scrollbar gutter on both so a scrolling textarea doesn't shrink
+   its content area while the underlay keeps full width. Also pin the
+   font stack and tab size — by default textareas render in the UA's
+   monospace fallback on some platforms. */
+.grammar-overlay-textarea,
+.grammar-overlay-underlay {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  scrollbar-gutter: stable;
+  tab-size: 4;
+  -moz-tab-size: 4;
+  box-sizing: border-box;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 /* Loading dots: three pink dots bouncing in a wave to indicate

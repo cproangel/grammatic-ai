@@ -58,10 +58,13 @@ app.add_middleware(
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Default ("flash") tier — fast, cheap, used for most requests.
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
-# Premium ("pro") tier — slower, ~4x more expensive, noticeably better
-# at low-resource language grammar (Uzbek morphology, Cyrillic↔Latin).
-# Optional: if not set, the request silently falls back to GEMINI_MODEL.
-GEMINI_MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-3.1-pro-preview")
+# Premium ("pro") tier — slower, more expensive, noticeably better at
+# low-resource language grammar (Uzbek morphology, Cyrillic↔Latin).
+# Default to gemini-2.5-pro (GA, ~4-8s latency, broadly available with
+# billing). The 3.x preview pro models default to HIGH thinking budget
+# and routinely take >60s on a single short prompt, which exceeds
+# Render's free-plan 150s gateway cap on real documents.
+GEMINI_MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-2.5-pro")
 
 # Vertex AI mode (service account JSON)
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")

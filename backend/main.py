@@ -460,17 +460,14 @@ async def check_grammar(request: GrammarCheckRequest):
     # Pass 1 — what we show in the UI
     raw_errors, corrected = await _run_check_pass(input_text, request.language, tier)
 
-    # Pass 2..N — keep refining the corrected_text until stable.
-    MAX_REFINE_PASSES = 3
-    seen_corrected = {input_text, corrected}
-    for _ in range(MAX_REFINE_PASSES):
-        if not corrected or corrected == input_text:
-            break
+    # Pass 2 — only on the pro tier. Each pass runs the full model
+    # round-trip and Render's free plan caps requests at ~150s, so we
+    # cap refinement to one extra pass to stay within budget for long
+    # legal-style inputs. Flash tier sticks to a single pass for speed.
+    if tier == "pro" and corrected and corrected != input_text:
         _next_errors, next_corrected = await _run_check_pass(corrected, request.language, tier)
-        if not next_corrected or next_corrected == corrected or next_corrected in seen_corrected:
-            break
-        seen_corrected.add(next_corrected)
-        corrected = next_corrected
+        if next_corrected and next_corrected != corrected:
+            corrected = next_corrected
 
     # Compute offsets for the FIRST-pass errors against the user's input
     raw_errors = compute_offsets(input_text, raw_errors)

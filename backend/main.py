@@ -58,12 +58,20 @@ app.add_middleware(
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Default ("flash") tier — fast, cheap, used for most requests.
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
-# Premium ("pro") tier — slower, more expensive, noticeably better at
-# low-resource language grammar (Uzbek morphology, Cyrillic↔Latin).
-# Default to gemini-2.5-pro (GA, ~4-8s latency, broadly available with
-# billing). The 3.x preview pro models default to HIGH thinking budget
-# and routinely take >60s on a single short prompt, which exceeds
-# Render's free-plan 150s gateway cap on real documents.
+# Premium ("pro") tier — better at low-resource language grammar
+# (Uzbek morphology, Cyrillic↔Latin).
+#
+# Empirically (tested 2026-04-28 with thinking_budget=512):
+#  * gemini-2.5-pro       — ~2-8s, GA, default. Works on Render free.
+#  * gemini-3-pro-preview — ~85s+ on tiny prompt, real text often
+#                            100-150s. Risks Render free 150s gateway
+#                            cap. Highest quality available right now.
+#  * gemini-3.1-pro-preview — >120s even with low thinking budget;
+#                              not viable on free hosting.
+#  * gemini-3-pro / gemini-3.1-pro — 404 NOT_FOUND (no GA yet).
+#
+# Override via env GEMINI_MODEL_PRO if you have a paid Render plan
+# (no 150s cap) and want to try gemini-3-pro-preview for max quality.
 GEMINI_MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-2.5-pro")
 
 # Vertex AI mode (service account JSON)

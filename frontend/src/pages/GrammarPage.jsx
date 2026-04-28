@@ -10,29 +10,24 @@ const POPUP_W = 300
 const POPUP_H_APPROX = 200
 const SCREEN_MARGIN = 12
 
-// Position the popup near a specific point on the screen (the click
-// or hover position) rather than an inline span's bounding rect — a
-// span that wraps over multiple lines has a single rect spanning all
-// the lines, and its centre is meaningless. Clamp to viewport so the
-// popup never gets cut off at the edges.
-//
-// pointX / pointY are viewport-relative pixels (clientX / clientY).
-// lineHeight is the line height of the surrounding text so we can
-// place the popup just under the line the user clicked, not at the
-// click point itself (looks weird).
+// Position the popup near the click/hover point. Returns the LEFT edge
+// (no translateX trick — left=actual left, easier to clamp). We use
+// the smaller of POPUP_W and (viewport - 2*margin) as the actual
+// width, so on narrow viewports the popup never exceeds the screen.
 function popupPosFromPoint(pointX, pointY, lineHeight = 24) {
   const w = window.innerWidth
   const h = window.innerHeight
-  let left = pointX
-  if (left - POPUP_W / 2 < SCREEN_MARGIN) left = POPUP_W / 2 + SCREEN_MARGIN
-  if (left + POPUP_W / 2 > w - SCREEN_MARGIN) left = w - POPUP_W / 2 - SCREEN_MARGIN
+  const popupW = Math.min(POPUP_W, w - 2 * SCREEN_MARGIN)
+  let left = pointX - popupW / 2
+  if (left < SCREEN_MARGIN) left = SCREEN_MARGIN
+  if (left + popupW > w - SCREEN_MARGIN) left = w - SCREEN_MARGIN - popupW
 
   const lineBottom = pointY + lineHeight / 2
   const lineTop = pointY - lineHeight / 2
   const spaceBelow = h - lineBottom
   const flipUp = spaceBelow < POPUP_H_APPROX + SCREEN_MARGIN && lineTop > POPUP_H_APPROX
   const top = flipUp ? lineTop - POPUP_H_APPROX - 8 : lineBottom + 8
-  return { left, top, flipUp }
+  return { left, top, width: popupW, flipUp }
 }
 
 const LangBadge = ({ children, dim = false }) => (
@@ -431,11 +426,11 @@ export default function GrammarPage() {
             transition={{ duration: 0.18 }}
             onMouseEnter={() => { if (!pinnedKey) setHoverKey(activeSeg.key) }}
             onMouseLeave={() => { if (!pinnedKey) { setHoverKey(null); setHoverPos(null) } }}
-            className="fixed w-[300px] rounded-xl p-3.5 border border-pink-500/40 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.85)]"
+            className="fixed rounded-xl p-3.5 border border-pink-500/40 shadow-[0_24px_50px_-10px_rgba(0,0,0,0.85)] overflow-hidden"
             style={{
               left: activePos.left,
               top: activePos.top,
-              transform: 'translateX(-50%)',
+              width: activePos.width || POPUP_W,
               zIndex: 9999,
               pointerEvents: 'auto',
               background: 'rgba(20,8,28,0.97)',
@@ -444,14 +439,14 @@ export default function GrammarPage() {
             }}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] uppercase tracking-wider text-pink-300 font-bold">
+              <span className="text-[11px] uppercase tracking-wider text-pink-300 font-bold shrink-0">
                 {lang === 'ru' ? 'Исправление' : 'Tuzatish'}
               </span>
               <span className="h-px flex-1 bg-pink-500/30" />
               {pinnedKey && (
                 <button
                   onClick={() => { setPinnedKey(null); setPinnedPos(null) }}
-                  className="text-pink-400/60 hover:text-pink-300 transition-colors"
+                  className="text-pink-400/60 hover:text-pink-300 transition-colors shrink-0"
                   aria-label="Close"
                 >
                   <X size={14} />
@@ -459,10 +454,10 @@ export default function GrammarPage() {
               )}
             </div>
             {activeSeg.err.suggestion && (
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-rose-300/60 line-through text-[13px]">{activeSeg.text}</span>
-                <span className="text-pink-300">→</span>
-                <span className="text-pink-100 font-bold text-[15px]">{activeSeg.err.suggestion}</span>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-2 min-w-0">
+                <span className="text-rose-300/60 line-through text-[13px] break-words min-w-0">{activeSeg.text}</span>
+                <span className="text-pink-300 shrink-0">→</span>
+                <span className="text-pink-100 font-bold text-[15px] break-words min-w-0">{activeSeg.err.suggestion}</span>
               </div>
             )}
             {activeSeg.err.message && (

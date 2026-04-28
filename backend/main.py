@@ -417,6 +417,17 @@ WHAT TO REPORT — be exhaustive, find ALL of them in this single pass:
    the context, sentence structure that distorts meaning. Suggest more
    natural wording. Skip if the text is already fine.
 
+UZBEK APOSTROPHES — DO NOT FLAG IF ALREADY CORRECT:
+- The text uses two distinct Unicode characters: ʻ (U+02BB, in oʻ/gʻ
+  letters like "boʻlgan", "qogʻoz", "Oʻzbekiston") and ʼ (U+02BC,
+  tutuq belgisi between syllables, like "maʼno", "eʼlon", "taʼlim").
+- These are already correct. DO NOT report them as errors. DO NOT
+  suggest replacing ʻ with ʼ or vice versa, and DO NOT suggest
+  replacing them with the ASCII apostrophe '.
+- Only flag an apostrophe if it is genuinely ASCII ' (U+0027) or
+  curly ' (U+2019) being used where ʻ or ʼ should be — e.g.
+  "bo'lgan" should become "boʻlgan".
+
 CRITICAL — UNIQUE LOCATABLE "word" FIELD:
 - The "word" field must be a substring that can be unambiguously found
   in the text. If your error is JUST a whitespace character (space,
@@ -474,6 +485,18 @@ async def _run_check_pass(input_text: str, language: str, tier: str):
                 e["word"] = normalize_uzbek_apostrophes(e["word"])
             if e.get("suggestion"):
                 e["suggestion"] = normalize_uzbek_apostrophes(e["suggestion"])
+
+    # Drop "errors" where the suggestion is the same as the word after
+    # normalization. The model frequently hallucinates apostrophe
+    # mistakes on already-correct words (e.g. boʻlgan → boʻlgan, qogʻoz
+    # → qogʻoz) — these slip past because the model is using its own
+    # apostrophe variant in its head and our normalizer collapses both
+    # into the same canonical form. If they collapse to the same string
+    # there's nothing to fix.
+    raw_errors = [
+        e for e in raw_errors
+        if not e.get("word") or not e.get("suggestion") or e["word"] != e["suggestion"]
+    ]
 
     return raw_errors, corrected
 

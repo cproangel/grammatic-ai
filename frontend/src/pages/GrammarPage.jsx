@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, Check, Sparkles, X } from 'lucide-react'
 import axios from 'axios'
 import { api } from '../config/api'
+import TierToggle from '../components/TierToggle'
 
 const POPUP_W = 300
 const POPUP_H_APPROX = 200
@@ -86,6 +87,7 @@ function buildSegments(text, errors) {
 
 export default function GrammarPage() {
   const [lang, setLang] = useState('uz')
+  const [tier, setTier] = useState('flash')
   const [text, setText] = useState('')
   const [errors, setErrors] = useState([])
   const [correctedText, setCorrectedText] = useState('')
@@ -133,7 +135,7 @@ export default function GrammarPage() {
     try {
       const res = await axios.post(
         api.grammarCheck,
-        { text, language: lang },
+        { text, language: lang, tier },
         { signal: controller.signal, timeout: 600000 },
       )
       setErrors(res.data.errors || [])
@@ -198,7 +200,7 @@ export default function GrammarPage() {
       className="flex flex-col gap-3 md:gap-5 md:h-full"
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <h1 className="text-xl md:text-2xl font-bold text-pink-200 tracking-tight">Grammatika</h1>
           <p className="text-pink-400/60 text-[12px] md:text-[13px] mt-0.5">
@@ -206,28 +208,31 @@ export default function GrammarPage() {
           </p>
         </div>
 
-        <div className="glass rounded-xl p-1 flex items-center">
-          {[
-            { k: 'ru', label: 'Русский' },
-            { k: 'uz', label: 'Oʻzbekcha' },
-          ].map((opt) => (
-            <button
-              key={opt.k}
-              onClick={() => setLang(opt.k)}
-              className={`relative px-4 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors ${
-                lang === opt.k ? 'text-pink-200' : 'text-white/50 hover:text-white/80'
-              }`}
-            >
-              {lang === opt.k && (
-                <motion.span
-                  layoutId="grammar-lang-pill"
-                  className="absolute inset-0 bg-pink-500/20 border border-pink-500/30 rounded-lg"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                />
-              )}
-              <span className="relative">{opt.label}</span>
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <TierToggle tier={tier} onChange={setTier} layoutId="grammar-tier-pill" />
+          <div className="glass rounded-xl p-1 flex items-center">
+            {[
+              { k: 'ru', label: 'Русский' },
+              { k: 'uz', label: 'Oʻzbekcha' },
+            ].map((opt) => (
+              <button
+                key={opt.k}
+                onClick={() => setLang(opt.k)}
+                className={`relative px-4 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors ${
+                  lang === opt.k ? 'text-pink-200' : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                {lang === opt.k && (
+                  <motion.span
+                    layoutId="grammar-lang-pill"
+                    className="absolute inset-0 bg-pink-500/20 border border-pink-500/30 rounded-lg"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative">{opt.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -56,7 +56,12 @@ app.add_middleware(
 
 # Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Default ("flash") tier — fast, cheap, used for most requests.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+# Premium ("pro") tier — slower, ~4x more expensive, noticeably better
+# at low-resource language grammar (Uzbek morphology, Cyrillic↔Latin).
+# Optional: if not set, the request silently falls back to GEMINI_MODEL.
+GEMINI_MODEL_PRO = os.getenv("GEMINI_MODEL_PRO", "gemini-3.1-pro-preview")
 
 # Vertex AI mode (service account JSON)
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
@@ -110,6 +115,7 @@ class TranslateRequest(BaseModel):
     text: str
     source_lang: str  # 'ru' or 'uz'
     target_lang: str  # 'ru' or 'uz'
+    tier: Optional[str] = "flash"  # 'flash' or 'pro'
 
 
 class TranslateResponse(BaseModel):
@@ -129,6 +135,7 @@ class GrammarError(BaseModel):
 class GrammarCheckRequest(BaseModel):
     text: str
     language: str  # 'ru' or 'uz'
+    tier: Optional[str] = "flash"  # 'flash' or 'pro'
 
 
 class GrammarCheckResponse(BaseModel):
@@ -173,7 +180,7 @@ def _is_retryable_gemini_error(exc: BaseException) -> bool:
     retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError, genai_errors.ClientError)),
     reraise=True,
 )
-async def call_gemini(prompt: str, system_prompt: str = "") -> str:
+async def call_gemini(prompt: str, system_prompt: str = "", model: str | None = None) -> str:
     """Call Gemini via google-genai SDK with retry logic."""
     if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API not configured")
@@ -183,7 +190,7 @@ async def call_gemini(prompt: str, system_prompt: str = "") -> str:
         if system_prompt:
             config = genai_types.GenerateContentConfig(system_instruction=system_prompt)
         response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=model or GEMINI_MODEL,
             contents=prompt,
             config=config,
         )
@@ -198,11 +205,12 @@ async def call_gemini(prompt: str, system_prompt: str = "") -> str:
         raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
 
 
-async def call_ai(prompt: str, system_prompt: str = "") -> str:
-    """Call Gemini (single-provider mode)."""
+async def call_ai(prompt: str, system_prompt: str = "", tier: str = "flash") -> str:
+    """Call Gemini. tier='flash' (default) or 'pro' (slower, more accurate)."""
     if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API not configured. Add GEMINI_API_KEY to .env")
-    return await call_gemini(prompt, system_prompt)
+    model = GEMINI_MODEL_PRO if tier == "pro" else GEMINI_MODEL
+    return await call_gemini(prompt, system_prompt, model=model)
 
 
 _UZBEK_OG_APOSTROPHE_RE = re.compile(r"([oOgG])[\'`\u2019]")
@@ -332,7 +340,8 @@ Translation:"""
     elif request.source_lang == "uz":
         system_ctx = get_uzbek_system_ctx()
 
-    translated = await call_ai(prompt, system_ctx)
+    tier = request.tier if request.tier in ("flash", "pro") else "flash"
+    translated = await call_ai(prompt, system_ctx, tier=tier)
     translated = translated.strip()
     if request.target_lang == "uz":
         translated = normalize_uzbek_apostrophes(translated)
@@ -344,118 +353,143 @@ Translation:"""
     )
 
 
-@app.post("/api/grammar/check", response_model=GrammarCheckResponse)
-async def check_grammar(request: GrammarCheckRequest):
-    """Check grammar and spelling errors with accurate highlighting"""
-    
-    lang_name = "Uzbek" if request.language == "uz" else "Russian"
-    response_lang = "oʻzbek tilida" if request.language == "uz" else "на русском языке"
+def _strip_code_fences(s: str) -> str:
+    s = s.strip()
+    if s.startswith("```json"):
+        s = s[7:]
+    elif s.startswith("```"):
+        s = s[3:]
+    if s.endswith("```"):
+        s = s[:-3]
+    return s.strip()
 
-    # Normalize apostrophes in the input so offsets match what the user sees
-    input_text = normalize_uzbek_apostrophes(request.text) if request.language == "uz" else request.text
 
-    prompt = f"""Analyze the following {lang_name} text and find every real issue.
+def _build_check_prompt(lang_name: str, response_lang: str, text: str) -> str:
+    return f"""Analyze the following {lang_name} text and find EVERY real issue.
 
 Text to check:
-\"\"\"{input_text}\"\"\"
+\"\"\"{text}\"\"\"
 
-WHAT TO REPORT — be thorough, do not skip categories:
+WHAT TO REPORT — be exhaustive, find ALL of them in this single pass:
 1. Spelling: misspelled words, wrong letters, missing/extra letters.
-2. Grammar: wrong endings, wrong cases, wrong agreement, wrong tense.
-3. Punctuation: missing or extra commas, missing periods at sentence ends,
+2. Grammar: wrong endings, cases, agreement, tense.
+3. Punctuation: missing/extra commas, missing periods at sentence ends,
    wrong quotation marks, wrong apostrophes (ʻ vs ʼ in Uzbek).
-4. Whitespace: report DOUBLE/TRIPLE spaces between words as a single
-   error covering the run of spaces (suggestion = single space). Also
-   report a missing space after a comma/period when the next character
-   is a letter.
-5. Hyphen vs dash: a single hyphen "-" used between independent clauses
-   or as a thought-break should be an em-dash "—" (with spaces). An
-   em-dash inside a compound word like "atrof-muhit" should be a
-   hyphen. Report whichever case applies.
-6. Capitalization: lowercase letter at the start of a sentence (after
-   ". ", "! ", "? ", or after a newline) → flag with suggestion
-   capitalized. Proper nouns written lowercase → flag.
-7. Style / wording: clumsy or unnatural phrasing, words that do not fit
-   the context, awkward sentence structure that distorts meaning. For
-   these, the message should explain why and the suggestion should
-   propose a more natural wording for THAT WORD OR PHRASE. Only flag
-   style when the meaning is genuinely unclear or awkward — do not
-   rewrite text that is already fine.
+4. Whitespace: double/triple spaces, missing space after comma/period,
+   stray newlines that break a sentence, etc.
+5. Hyphen vs em-dash: single "-" between clauses → em-dash "—";
+   em-dash inside a compound word like "atrof-muhit" → hyphen.
+6. Capitalization: lowercase at sentence start; proper nouns lowercase.
+7. Style / wording: clumsy or unnatural phrasing, words that don't fit
+   the context, sentence structure that distorts meaning. Suggest more
+   natural wording. Skip if the text is already fine.
 
-STRICT FORMATTING RULES:
-- Do NOT invent errors that don't exist. Real ones only.
-- The "word" field MUST be the EXACT substring from the original text
-  (copy it character-by-character, including spaces and apostrophes).
-- For whitespace errors, "word" is the literal run of spaces.
-- Do NOT paraphrase the error word.
+CRITICAL — UNIQUE LOCATABLE "word" FIELD:
+- The "word" field must be a substring that can be unambiguously found
+  in the text. If your error is JUST a whitespace character (space,
+  newline, tab), include AT LEAST one neighbouring word so the match
+  is unique. Examples:
+    - double space inside "Bu  qilingan" → word="Bu  qilingan",
+      suggestion="Bu qilingan"
+    - missing space after comma "uchun,bu" → word="uchun,bu",
+      suggestion="uchun, bu"
+    - stray newline before "2020-yil" that should be a space →
+      word="\\n2020-yil", suggestion=" 2020-yil"
+- For all other errors, "word" is the EXACT misspelled token, copied
+  character-by-character (including any apostrophes).
+- Do NOT invent errors that aren't there. If text is correct, return
+  empty errors array.
 
 All messages MUST be in {lang_name} ({response_lang}).
 
 Respond in this exact JSON format:
 {{
     "errors": [
-        {{"word": "exact_wrong_substring", "message": "explanation in {lang_name}", "suggestion": "correct_version"}}
+        {{"word": "...", "message": "...", "suggestion": "..."}}
     ],
     "corrected_text": "full corrected text with every error fixed"
-}}
+}}"""
 
-If NO errors found: {{"errors": [], "corrected_text": "original text unchanged"}}"""
 
-    system_ctx = ""
-    if request.language == "uz":
-        system_ctx = get_uzbek_system_ctx("check")
+async def _run_check_pass(input_text: str, language: str, tier: str):
+    """One round-trip to Gemini. Returns (errors_list, corrected_text)."""
+    lang_name = "Uzbek" if language == "uz" else "Russian"
+    response_lang = "oʻzbek tilida" if language == "uz" else "на русском языке"
+
+    prompt = _build_check_prompt(lang_name, response_lang, input_text)
+    system_ctx = get_uzbek_system_ctx("check") if language == "uz" else ""
 
     try:
-        result = await call_ai(prompt, system_ctx)
-        
-        # Clean up JSON response
-        result = result.strip()
-        if result.startswith("```json"):
-            result = result[7:]
-        if result.startswith("```"):
-            result = result[3:]
-        if result.endswith("```"):
-            result = result[:-3]
-        result = result.strip()
-        
-        data = json.loads(result)
-        
-        raw_errors = data.get("errors", [])
-        corrected = data.get("corrected_text", input_text)
+        result = await call_ai(prompt, system_ctx, tier=tier)
+        data = json.loads(_strip_code_fences(result))
+    except (json.JSONDecodeError, Exception):
+        return [], input_text
 
-        if request.language == "uz":
-            corrected = normalize_uzbek_apostrophes(corrected)
-            for e in raw_errors:
-                if e.get("word"):
-                    e["word"] = normalize_uzbek_apostrophes(e["word"])
-                if e.get("suggestion"):
-                    e["suggestion"] = normalize_uzbek_apostrophes(e["suggestion"])
+    raw_errors = data.get("errors", []) or []
+    corrected = data.get("corrected_text", input_text) or input_text
 
-        # Compute accurate offsets on the server side
-        raw_errors = compute_offsets(input_text, raw_errors)
-        
-        # Deduplicate errors (same word at same position)
-        seen = set()
-        unique_errors = []
+    if language == "uz":
+        corrected = normalize_uzbek_apostrophes(corrected)
         for e in raw_errors:
-            key = (e.get("word", ""), e.get("offset", -1))
-            if key not in seen:
-                seen.add(key)
-                unique_errors.append(e)
-        
-        errors = [GrammarError(**e) for e in unique_errors]
-        
-        return GrammarCheckResponse(
-            errors=errors,
-            corrected_text=corrected,
-            error_count=len(errors)
-        )
-    except json.JSONDecodeError:
-        return GrammarCheckResponse(
-            errors=[],
-            corrected_text=input_text,
-            error_count=0
-        )
+            if e.get("word"):
+                e["word"] = normalize_uzbek_apostrophes(e["word"])
+            if e.get("suggestion"):
+                e["suggestion"] = normalize_uzbek_apostrophes(e["suggestion"])
+
+    return raw_errors, corrected
+
+
+@app.post("/api/grammar/check", response_model=GrammarCheckResponse)
+async def check_grammar(request: GrammarCheckRequest):
+    """Check grammar and spelling.
+
+    Strategy:
+    1. First pass on the user's input → these errors are returned with
+       offsets, frontend uses them to highlight the visible text.
+    2. If the model produced a corrected_text that differs from the input,
+       run up to MAX_REFINE_PASSES additional passes on the corrected
+       text and keep the LAST stable corrected_text. This handles the
+       'fix one round, find new ones next round' frustration in a single
+       click — frontend just consumes the final corrected_text on
+       'Apply all'. We do NOT include those follow-up errors in the
+       returned list since their offsets refer to a different string.
+    """
+    tier = request.tier if request.tier in ("flash", "pro") else "flash"
+    input_text = normalize_uzbek_apostrophes(request.text) if request.language == "uz" else request.text
+
+    # Pass 1 — what we show in the UI
+    raw_errors, corrected = await _run_check_pass(input_text, request.language, tier)
+
+    # Pass 2..N — keep refining the corrected_text until stable.
+    MAX_REFINE_PASSES = 3
+    seen_corrected = {input_text, corrected}
+    for _ in range(MAX_REFINE_PASSES):
+        if not corrected or corrected == input_text:
+            break
+        _next_errors, next_corrected = await _run_check_pass(corrected, request.language, tier)
+        if not next_corrected or next_corrected == corrected or next_corrected in seen_corrected:
+            break
+        seen_corrected.add(next_corrected)
+        corrected = next_corrected
+
+    # Compute offsets for the FIRST-pass errors against the user's input
+    raw_errors = compute_offsets(input_text, raw_errors)
+
+    # Deduplicate (same word at same position)
+    seen = set()
+    unique_errors = []
+    for e in raw_errors:
+        key = (e.get("word", ""), e.get("offset", -1))
+        if key not in seen:
+            seen.add(key)
+            unique_errors.append(e)
+
+    errors = [GrammarError(**e) for e in unique_errors]
+    return GrammarCheckResponse(
+        errors=errors,
+        corrected_text=corrected,
+        error_count=len(errors),
+    )
 
 
 @app.post("/api/grammar/fix")

@@ -98,6 +98,12 @@ const LAT_TO_CYR = [
 const latToCyr = (s) => {
   let out = s
   LAT_TO_CYR.forEach(([l, c]) => { out = out.split(l).join(c) })
+  // Uzbek rule: 'e' at the start of a word becomes 'э', not 'е'.
+  // 'е' is only used after a consonant (mid-word). Apply this AFTER
+  // the dictionary replace, when every Latin e has become Cyrillic е.
+  // Boundary = string start, or any non-letter char (whitespace,
+  // punctuation, digits, dash, etc).
+  out = out.replace(/(^|[^\p{L}])([еЕ])/gu, (_m, prefix, ch) => prefix + (ch === 'Е' ? 'Э' : 'э'))
   return out
 }
 

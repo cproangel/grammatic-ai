@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Trash2, Sparkles, Volume2, ArrowDownUp, CheckCircle2 } from 'lucide-react'
 import axios from 'axios'
 import { api } from '../config/api'
+import TierToggle from '../components/TierToggle'
 
 const LangBadge = ({ children, dim = false }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
@@ -40,6 +41,7 @@ const CardIconBtn = ({ children, onClick, title }) => (
 
 export default function TranslatorPage() {
   const [fromRu, setFromRu] = useState(true)
+  const [tier, setTier] = useState('flash')
   const [input, setInput] = useState('')
   const [output, setOutput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -67,7 +69,7 @@ export default function TranslatorPage() {
     try {
       const res = await axios.post(
         api.translate,
-        { text, source_lang: fromLang, target_lang: toLang },
+        { text, source_lang: fromLang, target_lang: toLang, tier },
         { signal: controller.signal, timeout: 600000 },
       )
       setOutput(res.data.translated_text || '')
@@ -96,11 +98,12 @@ export default function TranslatorPage() {
       className="flex flex-col gap-3 md:gap-5 md:h-full"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-pink-200 tracking-tight">Tarjimon</h1>
           <p className="text-pink-400/60 text-[12px] md:text-[13px] mt-0.5">Русский ⇄ Oʻzbekcha — AI-tarjima</p>
         </div>
+        <TierToggle tier={tier} onChange={setTier} layoutId="translator-tier-pill" />
       </div>
 
       {/* Direction bar — swap button is anchored at the center via grid;

@@ -324,15 +324,17 @@ async def health_check():
 
 
 @app.get("/api/debug/test-pro")
-async def debug_test_pro():
-    """Probe the configured pro model with a tiny prompt and return the
-    raw error if it fails. Lets the user see exactly which model id is
-    rejected when the Pro tier surfaces 'Tekshiruvda xatolik'."""
+async def debug_test_pro(model: Optional[str] = None):
+    """Probe a model id (defaults to GEMINI_MODEL_PRO) with a tiny
+    prompt. Returns latency and the raw SDK error if it fails."""
+    target = model or GEMINI_MODEL_PRO
+    import time
+    t0 = time.time()
     try:
-        out = await call_gemini("Reply with only the word OK.", "", model=GEMINI_MODEL_PRO)
-        return {"ok": True, "model": GEMINI_MODEL_PRO, "response": out[:200]}
+        out = await call_gemini("Reply with only the word OK.", "", model=target)
+        return {"ok": True, "model": target, "latency_s": round(time.time() - t0, 2), "response": out[:200]}
     except Exception as e:
-        return {"ok": False, "model": GEMINI_MODEL_PRO, "error": str(e)}
+        return {"ok": False, "model": target, "latency_s": round(time.time() - t0, 2), "error": str(e)}
 
 
 @app.post("/api/translate", response_model=TranslateResponse)

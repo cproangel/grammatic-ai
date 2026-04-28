@@ -42,8 +42,10 @@ function App() {
         </span>
       </header>
 
-      {/* Sidebar — desktop only */}
-      <aside className="hidden md:flex relative z-10 w-64 shrink-0 h-screen p-5 flex-col gap-6">
+      {/* Sidebar — desktop only. Use the same vertical padding as main
+          (p-6) so the footer card aligns with the bottom edge of the
+          glass card on the right. */}
+      <aside className="hidden md:flex relative z-10 w-64 shrink-0 h-screen px-5 py-6 flex-col gap-6">
         {/* Logo block — top-left */}
         <motion.div
           initial={{ opacity: 0, x: -10 }}

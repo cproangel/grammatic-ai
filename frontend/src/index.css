@@ -156,11 +156,13 @@ body {
    same scrollbar gutter on both so a scrolling textarea doesn't shrink
    its content area while the underlay keeps full width. Also pin the
    font stack and tab size — by default textareas render in the UA's
-   monospace fallback on some platforms. */
+   monospace fallback on some platforms.
+   Use a serif so ʻ (U+02BB, in oʻ/gʻ) and ʼ (U+02BC, tutuq belgisi)
+   render with visibly distinct glyphs — the sans system fonts make
+   them nearly identical. */
 .grammar-overlay-textarea,
 .grammar-overlay-underlay {
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "Times New Roman", Georgia, "Liberation Serif", serif;
   scrollbar-gutter: stable;
   tab-size: 4;
   -moz-tab-size: 4;

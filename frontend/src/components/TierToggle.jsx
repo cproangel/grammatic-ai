@@ -2,8 +2,8 @@ import { motion } from 'framer-motion'
 import { Zap, Sparkles } from 'lucide-react'
 
 const TIERS = [
-  { k: 'flash', label: 'Tezkor',       Icon: Zap,      hint: 'Tezroq, oddiy' },
-  { k: 'pro',   label: 'Professional', Icon: Sparkles, hint: 'Aniqroq, sekinroq' },
+  { k: 'flash', label: 'Gemini 3 Flash', Icon: Zap,      hint: 'Tezroq, oddiy' },
+  { k: 'pro',   label: 'Gemini 2.5 Pro', Icon: Sparkles, hint: 'Aniqroq, sekinroq' },
 ]
 
 /** Flash / Pro model picker. layoutId must be unique per page so the

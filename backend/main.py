@@ -177,43 +177,48 @@ def _is_retryable_gemini_error(exc: BaseException) -> bool:
     return False
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError, genai_errors.ClientError)),
-    reraise=True,
-)
 def _build_gen_config(system_prompt: str, model_id: str):
-    """Build a GenerateContentConfig. For pro models with their notoriously
-    slow HIGH default thinking budget, request a low budget so requests
+    """Build a GenerateContentConfig. For Gemini 3.x pro/flash models
+    that default to HIGH thinking, request a low budget so requests
     stay under Render's 150s gateway cap."""
     kwargs = {}
     if system_prompt:
         kwargs["system_instruction"] = system_prompt
-    is_pro = "pro" in (model_id or "").lower()
-    if is_pro:
-        # Try the new ThinkingConfig API; fall back silently if the
-        # installed SDK predates it.
+    # Apply low thinking budget for both 3.x pro AND 3.x flash, since
+    # 3-flash also has thinking enabled by default.
+    is_thinky = "pro" in (model_id or "").lower() or "3" in (model_id or "")
+    if is_thinky:
         try:
             kwargs["thinking_config"] = genai_types.ThinkingConfig(thinking_budget=512)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] ThinkingConfig not supported: {e}")
     return genai_types.GenerateContentConfig(**kwargs) if kwargs else None
 
 
 async def call_gemini(prompt: str, system_prompt: str = "", model: str | None = None) -> str:
-    """Call Gemini via google-genai SDK with retry logic."""
+    """Call Gemini via the SDK's async interface so a single slow Pro
+    request doesn't block FastAPI's event loop and turn the next request
+    into an instant 503 from Render."""
     if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API not configured")
 
     model_id = model or GEMINI_MODEL
     try:
         config = _build_gen_config(system_prompt, model_id)
-        response = gemini_client.models.generate_content(
-            model=model_id,
-            contents=prompt,
-            config=config,
-        )
+        # google-genai SDK exposes async via client.aio.* — fall back
+        # to sync if older SDK doesn't have it.
+        if hasattr(gemini_client, "aio"):
+            response = await gemini_client.aio.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=config,
+            )
+        else:
+            response = gemini_client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=config,
+            )
         return response.text or ""
     except (httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError):
         raise
@@ -315,11 +320,19 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
+    try:
+        import google.genai as _g
+        sdk_version = getattr(_g, "__version__", "unknown")
+    except Exception:
+        sdk_version = "unknown"
     return {
         "status": "healthy",
         "gemini_configured": gemini_client is not None,
         "gemini_model": GEMINI_MODEL,
         "gemini_model_pro": GEMINI_MODEL_PRO,
+        "sdk_version": sdk_version,
+        "thinking_supported": hasattr(genai_types, "ThinkingConfig"),
+        "async_supported": gemini_client is not None and hasattr(gemini_client, "aio"),
     }
 
 

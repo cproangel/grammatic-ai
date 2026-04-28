@@ -180,17 +180,34 @@ def _is_retryable_gemini_error(exc: BaseException) -> bool:
     retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, genai_errors.ServerError, genai_errors.ClientError)),
     reraise=True,
 )
+def _build_gen_config(system_prompt: str, model_id: str):
+    """Build a GenerateContentConfig. For pro models with their notoriously
+    slow HIGH default thinking budget, request a low budget so requests
+    stay under Render's 150s gateway cap."""
+    kwargs = {}
+    if system_prompt:
+        kwargs["system_instruction"] = system_prompt
+    is_pro = "pro" in (model_id or "").lower()
+    if is_pro:
+        # Try the new ThinkingConfig API; fall back silently if the
+        # installed SDK predates it.
+        try:
+            kwargs["thinking_config"] = genai_types.ThinkingConfig(thinking_budget=512)
+        except Exception:
+            pass
+    return genai_types.GenerateContentConfig(**kwargs) if kwargs else None
+
+
 async def call_gemini(prompt: str, system_prompt: str = "", model: str | None = None) -> str:
     """Call Gemini via google-genai SDK with retry logic."""
     if not gemini_client:
         raise HTTPException(status_code=500, detail="Gemini API not configured")
 
+    model_id = model or GEMINI_MODEL
     try:
-        config = None
-        if system_prompt:
-            config = genai_types.GenerateContentConfig(system_instruction=system_prompt)
+        config = _build_gen_config(system_prompt, model_id)
         response = gemini_client.models.generate_content(
-            model=model or GEMINI_MODEL,
+            model=model_id,
             contents=prompt,
             config=config,
         )
@@ -200,9 +217,9 @@ async def call_gemini(prompt: str, system_prompt: str = "", model: str | None = 
     except genai_errors.ClientError as e:
         if getattr(e, "code", None) == 429:
             raise
-        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
+        raise HTTPException(status_code=400, detail=f"Gemini ({model_id}): {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gemini ({model_id}): {str(e)}")
 
 
 async def call_ai(prompt: str, system_prompt: str = "", tier: str = "flash") -> str:
@@ -299,7 +316,20 @@ async def health_check():
         "status": "healthy",
         "gemini_configured": gemini_client is not None,
         "gemini_model": GEMINI_MODEL,
+        "gemini_model_pro": GEMINI_MODEL_PRO,
     }
+
+
+@app.get("/api/debug/test-pro")
+async def debug_test_pro():
+    """Probe the configured pro model with a tiny prompt and return the
+    raw error if it fails. Lets the user see exactly which model id is
+    rejected when the Pro tier surfaces 'Tekshiruvda xatolik'."""
+    try:
+        out = await call_gemini("Reply with only the word OK.", "", model=GEMINI_MODEL_PRO)
+        return {"ok": True, "model": GEMINI_MODEL_PRO, "response": out[:200]}
+    except Exception as e:
+        return {"ok": False, "model": GEMINI_MODEL_PRO, "error": str(e)}
 
 
 @app.post("/api/translate", response_model=TranslateResponse)
@@ -412,17 +442,23 @@ Respond in this exact JSON format:
 
 
 async def _run_check_pass(input_text: str, language: str, tier: str):
-    """One round-trip to Gemini. Returns (errors_list, corrected_text)."""
+    """One round-trip to Gemini. Returns (errors_list, corrected_text).
+
+    HTTPException from call_ai (e.g. invalid model id, no quota) is
+    intentionally not caught here so the frontend sees the real reason
+    instead of a silent empty-errors response. Only JSON-parse failures
+    on a successful response degrade to empty errors.
+    """
     lang_name = "Uzbek" if language == "uz" else "Russian"
     response_lang = "oʻzbek tilida" if language == "uz" else "на русском языке"
 
     prompt = _build_check_prompt(lang_name, response_lang, input_text)
     system_ctx = get_uzbek_system_ctx("check") if language == "uz" else ""
 
+    result = await call_ai(prompt, system_ctx, tier=tier)
     try:
-        result = await call_ai(prompt, system_ctx, tier=tier)
         data = json.loads(_strip_code_fences(result))
-    except (json.JSONDecodeError, Exception):
+    except json.JSONDecodeError:
         return [], input_text
 
     raw_errors = data.get("errors", []) or []

@@ -10,20 +10,28 @@ const POPUP_W = 300
 const POPUP_H_APPROX = 200
 const SCREEN_MARGIN = 12
 
-// Clamp a popup anchored at (centerX, anchorBottom) so it stays inside
-// the viewport. Returns left/top in CSS-fixed coordinates plus a flag
-// telling the caller to flip the popup above the anchor when there's
-// not enough room below.
-function clampPopupPos(centerX, anchorTop, anchorBottom) {
+// Position the popup near a specific point on the screen (the click
+// or hover position) rather than an inline span's bounding rect — a
+// span that wraps over multiple lines has a single rect spanning all
+// the lines, and its centre is meaningless. Clamp to viewport so the
+// popup never gets cut off at the edges.
+//
+// pointX / pointY are viewport-relative pixels (clientX / clientY).
+// lineHeight is the line height of the surrounding text so we can
+// place the popup just under the line the user clicked, not at the
+// click point itself (looks weird).
+function popupPosFromPoint(pointX, pointY, lineHeight = 24) {
   const w = window.innerWidth
   const h = window.innerHeight
-  let left = centerX
+  let left = pointX
   if (left - POPUP_W / 2 < SCREEN_MARGIN) left = POPUP_W / 2 + SCREEN_MARGIN
   if (left + POPUP_W / 2 > w - SCREEN_MARGIN) left = w - POPUP_W / 2 - SCREEN_MARGIN
 
-  const spaceBelow = h - anchorBottom
-  const flipUp = spaceBelow < POPUP_H_APPROX + SCREEN_MARGIN && anchorTop > POPUP_H_APPROX
-  const top = flipUp ? anchorTop - POPUP_H_APPROX - 8 : anchorBottom + 8
+  const lineBottom = pointY + lineHeight / 2
+  const lineTop = pointY - lineHeight / 2
+  const spaceBelow = h - lineBottom
+  const flipUp = spaceBelow < POPUP_H_APPROX + SCREEN_MARGIN && lineTop > POPUP_H_APPROX
+  const top = flipUp ? lineTop - POPUP_H_APPROX - 8 : lineBottom + 8
   return { left, top, flipUp }
 }
 
@@ -327,10 +335,17 @@ export default function GrammarPage() {
                       style={{ color: '#fce7f3', pointerEvents: 'auto' }}
                       onMouseEnter={(e) => {
                         if (pinnedKey) return
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const pos = clampPopupPos(rect.left + rect.width / 2, rect.top, rect.bottom)
+                        // Use the cursor position so multi-line wrapped spans
+                        // open the popup near the line you're hovering, not
+                        // somewhere in the middle of the span's bounding box.
+                        const lh = parseFloat(getComputedStyle(e.currentTarget).lineHeight) || 24
                         setHoverKey(seg.key)
-                        setHoverPos(pos)
+                        setHoverPos(popupPosFromPoint(e.clientX, e.clientY, lh))
+                      }}
+                      onMouseMove={(e) => {
+                        if (pinnedKey || hoverKey !== seg.key) return
+                        const lh = parseFloat(getComputedStyle(e.currentTarget).lineHeight) || 24
+                        setHoverPos(popupPosFromPoint(e.clientX, e.clientY, lh))
                       }}
                       onMouseLeave={() => {
                         if (pinnedKey) return
@@ -339,10 +354,9 @@ export default function GrammarPage() {
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation()
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const pos = clampPopupPos(rect.left + rect.width / 2, rect.top, rect.bottom)
+                        const lh = parseFloat(getComputedStyle(e.currentTarget).lineHeight) || 24
                         setPinnedKey(seg.key)
-                        setPinnedPos(pos)
+                        setPinnedPos(popupPosFromPoint(e.clientX, e.clientY, lh))
                         setHoverKey(null)
                         setHoverPos(null)
                       }}

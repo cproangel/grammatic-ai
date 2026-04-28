@@ -457,17 +457,11 @@ async def check_grammar(request: GrammarCheckRequest):
     tier = request.tier if request.tier in ("flash", "pro") else "flash"
     input_text = normalize_uzbek_apostrophes(request.text) if request.language == "uz" else request.text
 
-    # Pass 1 — what we show in the UI
+    # Single pass. The new exhaustive prompt is doing the heavy lifting;
+    # adding refinement loops here multiplied latency by the number of
+    # passes and pushed pro-tier requests past Render's ~150s gateway
+    # timeout for long inputs.
     raw_errors, corrected = await _run_check_pass(input_text, request.language, tier)
-
-    # Pass 2 — only on the pro tier. Each pass runs the full model
-    # round-trip and Render's free plan caps requests at ~150s, so we
-    # cap refinement to one extra pass to stay within budget for long
-    # legal-style inputs. Flash tier sticks to a single pass for speed.
-    if tier == "pro" and corrected and corrected != input_text:
-        _next_errors, next_corrected = await _run_check_pass(corrected, request.language, tier)
-        if next_corrected and next_corrected != corrected:
-            corrected = next_corrected
 
     # Compute offsets for the FIRST-pass errors against the user's input
     raw_errors = compute_offsets(input_text, raw_errors)

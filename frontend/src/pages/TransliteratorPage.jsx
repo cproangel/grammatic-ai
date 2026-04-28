@@ -107,14 +107,6 @@ const latToCyr = (s) => {
   return out
 }
 
-const EXAMPLES = [
-  { cyr: 'Ўзбекистон', lat: `O${U_LEFT}zbekiston` },
-  { cyr: 'эълон',      lat: `e${U_RIGHT}lon` },
-  { cyr: 'маъно',      lat: `ma${U_RIGHT}no` },
-  { cyr: 'таълим',     lat: `ta${U_RIGHT}lim` },
-  { cyr: 'ғалаба',     lat: `g${U_LEFT}alaba` },
-]
-
 const LangBadge = ({ children, dim = false }) => (
   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium ${
     dim
@@ -160,11 +152,6 @@ export default function TransliteratorPage() {
     setFromCyr((v) => !v)
     setInput(output)
     setOutput(input)
-  }
-
-  const insertExample = (ex) => {
-    const v = fromCyr ? ex.cyr : ex.lat
-    setInput(v)
   }
 
   const fromLabel = fromCyr ? 'Кирилл' : 'Lotin'
@@ -271,35 +258,6 @@ export default function TransliteratorPage() {
         </motion.button>
       </div>
 
-      {/* Examples */}
-      <div className="glass rounded-2xl px-5 py-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles size={15} className="text-pink-400/70" />
-          <span className="text-[12px] uppercase tracking-wider text-pink-400/70 font-semibold">
-            Namunalar
-          </span>
-          <span className="h-px flex-1 bg-pink-500/15" />
-          <span className="text-[11px] text-pink-400/50">ustiga bosing</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((ex, i) => (
-            <motion.button
-              key={ex.cyr}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05, duration: 0.3 }}
-              whileHover={{ y: -2, backgroundColor: 'rgba(236,72,153,0.2)', borderColor: 'rgba(236,72,153,0.5)' }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => insertExample(ex)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-[13px] transition-all"
-            >
-              <span className="text-pink-200 font-medium">{ex.cyr}</span>
-              <span className="text-pink-400/50">→</span>
-              <span className="text-pink-300/90 font-medium tracking-tight">{ex.lat}</span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
     </motion.div>
   )
 }
